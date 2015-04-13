@@ -1,0 +1,89 @@
+<schema>
+
+<struct name="Hsp">
+  <field name="hsp_num" type="int"/>
+  <field name="hsp_bit-score" type="double"/>
+  <field name="hsp_score" type="int"/>
+  <field name="hsp_evalue" type="double"/>
+  <field name="hsp_query-from" type="int"/>
+  <field name="hsp_query-to" type="int"/>
+  <field name="hsp_hit-from" type="int"/>
+  <field name="hsp_hit-to" type="int"/>
+  <field name="hsp_pattern-from" type="int"/>
+  <field name="hsp_pattern-to" type="int"/>
+  <field name="hsp_query-frame" type="int"/>
+  <field name="hsp_hit-frame" type="int"/>
+  <field name="hsp_identity" type="int"/>
+  <field name="hsp_positive" type="int"/>
+  <field name="hsp_gaps" type="int"/>
+  <field name="hsp_align-len" type="int"/>
+  <field name="hsp_density" type="int"/>
+  <field name="hsp_qseq" type="string"/>
+  <field name="hsp_hseq" type="string"/>
+  <field name="hsp_midline" type="string"/>
+</struct>
+
+
+<struct name="Hit">
+  <field name="hit_num" type="int"/>
+  <field name="hit_id" type="string"/>
+  <field name="hit_def" type="string"/>
+  <field name="hit_accession" type="string"/>
+  <field name="hit_len" type="int"/>
+  <field name="hit_hsps" type="Hsp"/>
+</struct>
+
+
+<struct name="Statistics">
+  <field name="statistics_db-num" type="int"/>
+  <field name="statistics_db-len" type="int"/>
+  <field name="statistics_hsp-len" type="int"/>
+  <field name="statistics_eff-space" type="double"/>
+  <field name="statistics_kappa" type="double"/>
+  <field name="statistics_lambda" type="double"/>
+  <field name="statistics_entropy" type="double"/>
+</struct>
+
+
+<struct name="Iteration">
+  <field name="iteration_iter-num" type="int"/>
+  <field name="iteration_query-ID" type="string"/>
+  <field name="iteration_query-def" type="string"/>
+  <field name="iteration_query-len" type="int"/>
+  <field name="iteration_hits" type="Hit"/>
+  <field name="iteration_stat" type="Statistics"/>
+  <field name="iteration_message" type="string"/>
+</struct>
+
+
+<struct name="Parameters">
+  <field name="parameters_matrix" type="string"/>
+  <field name="parameters_expect" type="double"/>
+  <field name="parameters_include" type="double"/>
+  <field name="parameters_sc-match" type="int"/>
+  <field name="parameters_sc-mismatch" type="int"/>
+  <field name="parameters_gap-open" type="int"/>
+  <field name="parameters_gap-extend" type="int"/>
+  <field name="parameters_filter" type="string"/>
+  <field name="parameters_pattern" type="string"/>
+  <field name="parameters_entrez-query" type="string"/>
+</struct>
+
+
+<struct name="BlastOutput">
+  <field name="blastOutput_program" type="string"/>
+  <field name="blastOutput_version" type="string"/>
+  <field name="blastOutput_reference" type="string"/>
+  <field name="blastOutput_db" type="string"/>
+  <field name="blastOutput_query-ID" type="string"/>
+  <field name="blastOutput_query-def" type="string"/>
+  <field name="blastOutput_query-len" type="int"/>
+  <field name="blastOutput_query-seq" type="string"/>
+  <field name="blastOutput_param" type="Parameters"/>
+  <field name="blastOutput_iterations" type="Iteration"/>
+  <field name="blastOutput_mbstat" type="Statistics"/>
+</struct>
+
+
+</schema>
+
