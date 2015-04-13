@@ -20,6 +20,7 @@ int main(int argc, char **argv)
 	int i = 0;
 	Iteration *it = NULL;
 	Hsp *hsp = NULL;
+	Hsp *runningHsp = NULL;
 	gzFile fp;
 	kseq_t *seq;
 
@@ -59,21 +60,27 @@ int main(int argc, char **argv)
 			if (it->iteration_hits->hit_hsps != NULL)
 			{			
 				hsp = it->iteration_hits->hit_hsps;
-				while (hsp != NULL)
+				runningHsp = it->iteration_hits->hit_hsps;
+
+				while (runningHsp != NULL)
 				{
-					cigar = cigarStrBuilding(hsp, it->iteration_query_len, &sizeCStr);
-					fprintf(stdout, "%s\tflag\t%s\t%d\t%d\t", it->iteration_query_def, it->iteration_hits->hit_def, hsp->hsp_hit_from, hsp->hsp_score);
-					for (i = 0; i < sizeCStr; i++)
-					{
-						if (i % 2 == 0)
-							fprintf(stdout, "%d", cigar[i]);
-						else
-							fprintf(stdout, "%c", cigar[i]);
-					}	
-					fprintf(stdout, "\trnext\tpnext\t%d\t%s\t%s\n", (hsp->hsp_hit_to)-(hsp->hsp_hit_from), seq->seq.s, seq->qual.s);
-					free(cigar);
-					hsp = hsp->next;
+					if (runningHsp->hsp_score > hsp->hsp_score)
+						hsp = runningHsp;
+
+					runningHsp = runningHsp->next;
 				}
+
+				cigar = cigarStrBuilding(hsp, it->iteration_query_len, &sizeCStr);
+				fprintf(stdout, "%s\tflag\t%s\t%d\t%d\t", it->iteration_query_def, it->iteration_hits->hit_def, hsp->hsp_hit_from, hsp->hsp_score);
+				for (i = 0; i < sizeCStr; i++)
+				{
+					if (i % 2 == 0)
+						fprintf(stdout, "%d", cigar[i]);
+					else
+						fprintf(stdout, "%c", cigar[i]);
+				}	
+				fprintf(stdout, "\trnext\tpnext\t%d\t%s\t%s\n", (hsp->hsp_hit_to)-(hsp->hsp_hit_from), seq->seq.s, seq->qual.s);
+				free(cigar);
 			}
 		
 			else
