@@ -25,20 +25,20 @@ int main(int argc, char **argv)
 	kseq_t *seq;
 
 	if (argc < 3)
-		ERROR("Wrong number of arguments\n", NULL, EXIT_FAILURE)
+		ERROR("Wrong number of arguments\n", EXIT_FAILURE)
 	
 	reader = xmlNewTextReaderFilename(argv[1]);
 	
 	if (reader == NULL)
-		ERROR("Unable to open the XML file\n", NULL, EXIT_FAILURE)
+		ERROR("Unable to open the XML file\n", EXIT_FAILURE)
 	
 	evt = xmlTextReaderRead(reader);	
 
 	if (evt == -1)
-		ERROR("Error while reading the first node\n", xmlFreeTextReader(reader), EXIT_FAILURE)
+		ERROR("Error while reading the first node\n", EXIT_FAILURE)
 
 	if (xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "BlastOutput"))
-		ERROR("The document is not a Blast output\n", xmlFreeTextReader(reader), EXIT_FAILURE)
+		ERROR("The document is not a Blast output\n", EXIT_FAILURE)
 
 	evt = xmlTextReaderRead(reader);
 
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
 	fp = gzopen(argv[2], "r");
 
 	if (fp == NULL)
-		ERROR("Unable to open the FastQ\n", xmlFreeTextReader(reader), EXIT_FAILURE)
+		ERROR("Unable to open the FastQ\n", EXIT_FAILURE)
 
 	seq = kseq_init(fp);
 
@@ -70,7 +70,7 @@ int main(int argc, char **argv)
 					runningHsp = runningHsp->next;
 				}
 
-				cigar = cigarStrBuilding(hsp, it->iteration_query_len, &sizeCStr);
+				cigar = cigarStrBuilding(cigar, hsp, it->iteration_query_len, &sizeCStr);
 				fprintf(stdout, "%s\tflag\t%s\t%d\t%d\t", it->iteration_query_def, it->iteration_hits->hit_def, hsp->hsp_hit_from, hsp->hsp_score);
 				for (i = 0; i < sizeCStr; i++)
 				{
@@ -80,7 +80,6 @@ int main(int argc, char **argv)
 						fprintf(stdout, "%c", cigar[i]);
 				}	
 				fprintf(stdout, "\trnext\tpnext\t%d\t%s\t%s\n", (hsp->hsp_hit_to)-(hsp->hsp_hit_from), seq->seq.s, seq->qual.s);
-				free(cigar);
 			}
 		
 			else
@@ -88,6 +87,7 @@ int main(int argc, char **argv)
 		}
 		deallocIteration(it);
 	}
+	free(cigar);
 	kseq_destroy(seq);
 	gzclose(fp);
 	deallocBlastOutput(blastOP);

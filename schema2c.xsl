@@ -62,9 +62,12 @@ typedef struct <xsl:value-of select="@name"/>_t
 <xsl:if test="$fileType='c'">
 <xsl:value-of select="@name"/>Ptr parse<xsl:value-of select="@name"/>(xmlTextReaderPtr reader)
 {
-	<xsl:value-of select="@name"/>Ptr p = calloc(1, sizeof(<xsl:value-of select="@name"/>));
 	int evt = 1;
 	int end = 0;
+	<xsl:value-of select="@name"/>Ptr p = calloc(1, sizeof(<xsl:value-of select="@name"/>));
+	if (p == NULL)
+		ERROR("Bad memory allocation of <xsl:value-of select="@name"/> p", NULL)
+	
 	evt = xmlTextReaderRead(reader);
 
 	if (xmlTextReaderNodeType(reader) == 15)
@@ -88,7 +91,7 @@ typedef struct <xsl:value-of select="@name"/>_t
 	}
 	
 	if (evt == -1)
-		ERROR("Error while reading the node", NULL, NULL)
+		ERROR("Error while reading the node", NULL)
 
 	if (xmlTextReaderNodeType(reader) != 15)
 		evt = xmlTextReaderRead(reader);

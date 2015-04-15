@@ -20,9 +20,8 @@
 		} \
 		pos--;}
 
-int *cigarStrBuilding(Hsp *hsp, int queryLength, int *sizeCStr)
+int *cigarStrBuilding(int *cigarStr, Hsp *hsp, int queryLength, int *sizeCStr)
 {
-	int *cigarStr = NULL;
 	int pos = 0;
 	int count = 0;
 	*sizeCStr = 0;

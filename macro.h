@@ -1,13 +1,12 @@
 #ifndef MACRO_H_INCLUDED
 #define MACRO_H_INCLUDED
 
-#define ERROR(MESSAGE, FUNCT, ENDING) { \
+#define ERROR(MESSAGE, ENDING) { \
 		fprintf(stderr, MESSAGE); \
-		FUNCT; \
 		return ENDING;}
 
 #define TABBUILDINGMACRO(TABNAME, NBALLOC, TYPE, ENDING) TABNAME = (TYPE*) realloc(TABNAME, (NBALLOC * sizeof(TYPE))); \
 		if (TABNAME == NULL) \
-			ERROR ("Bad memory allocation of TABNAME", NULL, ENDING)
+			ERROR ("Bad memory allocation of TABNAME", ENDING)
 
 #endif // MACRO_H_INCLUDED

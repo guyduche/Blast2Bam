@@ -12,12 +12,12 @@ int main(int argc, char **argv)
 	int countSpace = 0;
 	
 	if (argc != 2)
-		ERROR("Wrong number of arguments\n", NULL, EXIT_FAILURE)
+		ERROR("Wrong number of arguments\n", EXIT_FAILURE)
 
 	reader = fopen(argv[1], "r");
 
 	if (reader == NULL)
-		ERROR("Error while opening the file\n", NULL, EXIT_FAILURE)
+		ERROR("Error while opening the file\n", EXIT_FAILURE)
 
 	do
 	{

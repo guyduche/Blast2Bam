@@ -3,6 +3,6 @@
 
 #include "parseXML.h"
 
-int *cigarStrBuilding(Hsp *hsp, int queryLength, int *sizeCStr);
+int *cigarStrBuilding(int *cigarStr, Hsp *hsp, int queryLength, int *sizeCStr);
 
 #endif // CIGAR_H_INCLUDED
