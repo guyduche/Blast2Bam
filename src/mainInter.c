@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -6,39 +7,8 @@
 #include "parseXML.h"
 #include "cigar.h"
 #include "macro.h"
-#include "kseq.h"
+#include "shortRead.h"
 
-KSEQ_INIT(gzFile, gzread)
-
-typedef struct Sequence_t
-{
-	char *name;
-	char *seq;
-	char *qual;
-} Sequence;
-
-Sequence *initSeq()
-{
-	Sequence *seq = (Sequence*) calloc(1, sizeof(Sequence));
-	if (seq == NULL)
-		ERROR("Bad memory allocation of Sequence seq", NULL)
-	
-	seq->name = NULL;
-	seq->seq = NULL;
-	seq->qual = NULL;
-	return seq;
-}
-
-Sequence *addSeq(Sequence *seq, kseq_t *seqRead)
-{
-	TABBUILDINGMACRO(seq->name, seqRead->name.m, char, NULL)
-	TABBUILDINGMACRO(seq->seq, seqRead->seq.m, char, NULL)
-	TABBUILDINGMACRO(seq->qual, seqRead->qual.m, char, NULL)
-	strcpy(seq->name, seqRead->name.s);
-	strcpy(seq->seq, seqRead->seq.s);
-	strcpy(seq->qual, seqRead->qual.s);
-	return seq;
-}
 
 void printRead(char *qname, int flag, char *rname, int pos, int mapq, int *cigar, int sizeCStr, char *rnext, int pnext, int tlen, char *seq, char *qual)
 {
@@ -52,14 +22,6 @@ void printRead(char *qname, int flag, char *rname, int pos, int mapq, int *cigar
 	fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", rnext, pnext, tlen, seq, qual);
 }
 
-void deallocSequence(Sequence *seq)
-{
-	free(seq->name);
-	free(seq->seq);
-	free(seq->qual);
-	free(seq);
-}
-
 int main(int argc, char **argv)
 {
 	xmlTextReaderPtr reader;
@@ -68,15 +30,16 @@ int main(int argc, char **argv)
 	int *cigar = NULL;
 	int sizeCStr = 0;
 	int flag = 0;
-	Iteration *itFor = NULL;
-	Iteration *itRev = NULL;
+	IterationPtr itFor = NULL;
+	IterationPtr itRev = NULL;
 	Hsp *hspFor = NULL;
 	Hsp *hspRev = NULL;
 	Hsp *hspCur = NULL;
+	ShortReadPtr seqFor = NULL;
+	ShortReadPtr seqRev = NULL;
 	gzFile fp;
-	kseq_t *seq;
-	Sequence *seqFor = NULL;
-	Sequence *seqRev = NULL;
+	int side = 0;
+	ShortReadAndIteration shortReadsIter[2];
 
 	if (argc < 3)
 		ERROR("Wrong number of arguments\n", EXIT_FAILURE)
@@ -103,22 +66,19 @@ int main(int argc, char **argv)
 	if (fp == NULL)
 		ERROR("Unable to open the FastQ\n", EXIT_FAILURE)
 
-	seq = kseq_init(fp);
-	seqFor = initSeq();
-	seqRev = initSeq();
-
 	while (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "Iteration"))
-	{	
-		itFor = parseIteration(reader);
-		itRev = parseIteration(reader);
+	{
+		for(side = 0; side < 2; ++side)
+		{
+			shortReadsIter[side].blast = parseIteration(reader);
+			shortReadsIter[side].seq = ShortReadNext(fp);
+		}
 
-		kseq_read(seq);
-		seqFor = addSeq(seqFor, seq);
+		itFor = shortReadsIter[0].blast;
+		itRev = shortReadsIter[1].blast;
+		seqFor = shortReadsIter[0].seq;
+		seqRev = shortReadsIter[1].seq;
 
-		kseq_read(seq);
-		seqRev = addSeq(seqRev, seq);
-
-		fprintf(stdout, "Truc\t%s\t%s\t%s\t%s\n", seqFor->name, itFor->iteration_query_def, seqRev->name, itRev->iteration_query_def);
 		if (!strcmp(seqFor->name, itFor->iteration_query_def) && !strcmp(seqRev->name, itRev->iteration_query_def))
 		{
 			if (itFor->iteration_hits->hit_hsps == NULL && itRev->iteration_hits->hit_hsps == NULL)
@@ -167,13 +127,13 @@ int main(int argc, char **argv)
 			{			
 				hspFor = itFor->iteration_hits->hit_hsps;
 				hspRev = itRev->iteration_hits->hit_hsps;
-
+				
 				while (hspFor != NULL)
 				{
 					hspRev = itRev->iteration_hits->hit_hsps;
 					while (hspRev != NULL)
 					{
-						if ((300 < abs(hspRev->hsp_hit_to - hspFor->hsp_hit_to)) && (abs(hspRev->hsp_hit_to - hspFor->hsp_hit_to) < 600))
+						if ((0 < abs(hspRev->hsp_hit_to - hspFor->hsp_hit_to)) && (abs(hspRev->hsp_hit_to - hspFor->hsp_hit_to) < 1000000))
 						{
 							cigar = cigarStrBuilding(cigar, hspFor, itFor->iteration_query_len, &sizeCStr);
 							printRead(itFor->iteration_query_def, flag, itFor->iteration_hits->hit_def, hspFor->hsp_hit_from, hspFor->hsp_score, cigar, sizeCStr, "=", hspRev->hsp_hit_from, (hspFor->hsp_hit_to)-(hspFor->hsp_hit_from), seqFor->seq, seqFor->qual);
@@ -188,14 +148,16 @@ int main(int argc, char **argv)
 				}
 			}
 		}
-		deallocIteration(itFor);
-		deallocIteration(itRev);
+		
+		for(side = 0; side < 2; ++side)
+		{
+			deallocIteration(shortReadsIter[side].blast);
+			ShortReadFree(shortReadsIter[side].seq);
+		}
 	}
-	free(cigar);
-	deallocSequence(seqFor);
-	deallocSequence(seqRev);
+	if (cigar != NULL)
+		free(cigar);
 
-	kseq_destroy(seq);
 	gzclose(fp);
 	deallocBlastOutput(blastOP);
 	

@@ -1,3 +1,4 @@
+
 #ifndef CIGAR_H_INCLUDED
 #define CIGAR_H_INCLUDED
 

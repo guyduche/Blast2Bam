@@ -1,0 +1,7 @@
+*.o
+jeter*
+*~
+tmp*
+*.tmp
+parseDict
+prog

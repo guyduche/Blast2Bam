@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -6,9 +7,20 @@
 #include "parseXML.h"
 #include "cigar.h"
 #include "macro.h"
-#include "kseq.h"
+#include "shortRead.h"
 
-KSEQ_INIT(gzFile, gzread)
+
+void printRead(char *qname, int flag, char *rname, int pos, int mapq, int *cigar, int sizeCStr, char *rnext, int pnext, int tlen, char *seq, char *qual)
+{
+	int i = 0;
+	fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", qname, flag, rname, pos, mapq);
+	if (cigar != NULL)
+		for (i = 0; i < sizeCStr; i++)
+			fprintf(stdout,(i % 2 == 0 ? "%d":"%c"), cigar[i]);
+	else
+		fprintf(stdout, "*");
+	fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", rnext, pnext, tlen, seq, qual);
+}
 
 int main(int argc, char **argv)
 {
@@ -17,12 +29,12 @@ int main(int argc, char **argv)
 	int evt = 1;
 	int *cigar = NULL;
 	int sizeCStr = 0;
-	int i = 0;
-	Iteration *it = NULL;
+	int flag = 0;
+	IterationPtr it = NULL;
 	Hsp *hsp = NULL;
-	Hsp *runningHsp = NULL;
+	Hsp *hspCur = NULL;
 	gzFile fp;
-	kseq_t *seq;
+	ShortReadPtr seq = NULL;
 
 	if (argc < 3)
 		ERROR("Wrong number of arguments\n", EXIT_FAILURE)
@@ -49,46 +61,39 @@ int main(int argc, char **argv)
 	if (fp == NULL)
 		ERROR("Unable to open the FastQ\n", EXIT_FAILURE)
 
-	seq = kseq_init(fp);
+	
 
 	while (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "Iteration"))
 	{
 		it = parseIteration(reader);
-		kseq_read(seq);
-		if (!strcmp(seq->name.s, it->iteration_query_def))
+		seq = ShortReadNext(fp);
+		if (!strcmp(seq->name, it->iteration_query_def))
 		{
 			if (it->iteration_hits->hit_hsps != NULL)
 			{			
 				hsp = it->iteration_hits->hit_hsps;
-				runningHsp = it->iteration_hits->hit_hsps;
+				hspCur = it->iteration_hits->hit_hsps;
 
-				while (runningHsp != NULL)
+				while (hspCur != NULL)
 				{
-					if (runningHsp->hsp_score > hsp->hsp_score)
-						hsp = runningHsp;
+					if (hspCur->hsp_score > hsp->hsp_score)
+						hsp = hspCur;
 
-					runningHsp = runningHsp->next;
+					hspCur = hspCur->next;
 				}
 
 				cigar = cigarStrBuilding(cigar, hsp, it->iteration_query_len, &sizeCStr);
-				fprintf(stdout, "%s\tflag\t%s\t%d\t%d\t", it->iteration_query_def, it->iteration_hits->hit_def, hsp->hsp_hit_from, hsp->hsp_score);
-				for (i = 0; i < sizeCStr; i++)
-				{
-					if (i % 2 == 0)
-						fprintf(stdout, "%d", cigar[i]);
-					else
-						fprintf(stdout, "%c", cigar[i]);
-				}	
-				fprintf(stdout, "\trnext\tpnext\t%d\t%s\t%s\n", (hsp->hsp_hit_to)-(hsp->hsp_hit_from), seq->seq.s, seq->qual.s);
+				printRead(it->iteration_query_def, flag, it->iteration_hits->hit_def, hsp->hsp_hit_from, hsp->hsp_score, cigar, sizeCStr, "*", 0, (hsp->hsp_hit_to)-(hsp->hsp_hit_from), seq->seq, seq->qual);
 			}
 		
 			else
-				fprintf(stdout, "%s\tflag\t*\t0\t0\t*\trnext\tpnext\t0\t%s\t%s\n", it->iteration_query_def, seq->seq.s, seq->qual.s);
+				printRead(it->iteration_query_def, 0, "*", 0, 0, NULL, 0, "*", 0, 0, seq->seq, seq->qual);
 		}
 		deallocIteration(it);
 	}
-	free(cigar);
-	kseq_destroy(seq);
+	if (cigar != NULL)
+		free(cigar);
+	ShortReadFree(seq);
 	gzclose(fp);
 	deallocBlastOutput(blastOP);
 	
