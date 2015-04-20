@@ -5,15 +5,13 @@ FASTQ = ${HOME}/data/Pichon/180714_rand.fq.gz
 DB = ${HOME}/data/Pichon/db/db.fasta
 
 
-results.sam: makeSrc refDict ${FASTQ} ${DB}
-	gunzip -c ${FASTQ} | head -n 40000 | paste - - - - | cut -f 1,2 | cut -c2- | sed 's/^/>/' | tr "\t" "\n" | blastn -db ${DB} -query - -outfmt 5 | ./../bin/prog - ${FASTQ} >> $@
+results.sam: makeSrc dbDict ${FASTQ} ${DB}
+	gunzip -c ${FASTQ} | head -n 40000 | paste - - - - | cut -f 1,2 | cut -c2- |\
+		sed 's/^/>/' | tr "\t" "\n" | blastn -db ${DB} -query - -outfmt 5 | ./../bin/prog - db.dict ${FASTQ} > $@
+	rm -f db.dict
 
 makeSrc:
 	(cd ../bin; ${MAKE})
-
-refDict: dbDict ../bin/parseDict
-	./../bin/parseDict db.dict > results.sam
-	rm -f db.dict
 
 dbDict: ${DB}
 	picard-tools CreateSequenceDictionary R=$< O=db.dict

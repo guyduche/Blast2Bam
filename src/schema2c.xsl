@@ -13,7 +13,7 @@
 #include &lt;string.h&gt;
 #include &lt;stdlib.h&gt;
 #include "parseXML.h"
-#include "macro.h"
+#include "utils.h"
 
 #define PARSEMACRO(TAG, STRUCT, FIELD, FUNCT) (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*)TAG)) \
 		{ \
@@ -66,7 +66,7 @@ typedef struct <xsl:value-of select="@name"/>_t
 	int end = 0;
 	<xsl:value-of select="@name"/>Ptr p = calloc(1, sizeof(<xsl:value-of select="@name"/>));
 	if (p == NULL)
-		ERROR("Bad memory allocation of <xsl:value-of select="@name"/> p", NULL)
+		ERROR("Failed memory allocation of <xsl:value-of select="@name"/> p", NULL)
 	
 	evt = xmlTextReaderRead(reader);
 
@@ -104,7 +104,7 @@ typedef struct <xsl:value-of select="@name"/>_t
 
 void dealloc<xsl:value-of select="@name"/>(<xsl:value-of select="@name"/>Ptr element)
 {
-	<xsl:if test="@name='BlastOutput' or @name='Iteration' or @name='Hit'">void *prec = NULL;</xsl:if>
+	<xsl:if test="@name='BlastOutput' or @name='Iteration' or @name='Hit'">void* prec = NULL;</xsl:if>
 	<xsl:for-each select="field">
 	<xsl:choose>
 		<xsl:when test="@type='int'"></xsl:when>

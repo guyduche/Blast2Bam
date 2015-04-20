@@ -1,0 +1,16 @@
+
+call to blast with sequence generated
+see how we can do that Fasta style (with the header)
+then create a pipe to get the xml out of blast line by line
+
+fun with flags
+
+option for interleaved
+
+pairing of forward and reverse
+
+safe functions
+
+use of the SamOutput structure
+
+look at the casts in shortread.c

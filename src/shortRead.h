@@ -2,25 +2,16 @@
 #ifndef SHORTREAD_H_INCLUDED
 #define SHORTREAD_H_INCLUDED
 
+#include <zlib.h>
 #include "parseXML.h"
 
-typedef struct shortRead_t
-{
-	char* name;
-	char* seq;
-	char* qual;
-	size_t read_len;
-} ShortRead, *ShortReadPtr;
+typedef void* ShortReadPtr;
 
-typedef struct ShortReadAndIteration
-{
-	ShortReadPtr seq;
-	IterationPtr blast;
-} ShortReadAndIteration;
-
-ShortReadPtr ShortReadNew();
-char* gzReadLine(gzFile in, size_t* line_len);
-ShortReadPtr ShortReadNext(gzFile in);
-void ShortReadFree(ShortReadPtr ptr);
+ShortReadPtr shortReadNext(gzFile in);
+void shortReadFree(ShortReadPtr ptr);
+void const char* shortReadName(ShortReadPtr);
+void const char* shortReadSequence(ShortReadPtr);
+void const char* shortReadQuality(ShortReadPtr);
+void int shortReadSize(ShortReadPtr);
 
 #endif // SHORTREAD_H_INCLUDED

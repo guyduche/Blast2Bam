@@ -5,38 +5,26 @@
 #include <libxml/xmlreader.h>
 #include <zlib.h>
 #include "parseXML.h"
-#include "cigar.h"
-#include "macro.h"
+#include "blastSam.h"
+#include "utils.h"
 #include "shortRead.h"
 
+//ALLER VOIR CODE JENNIFER get_longopt / getopt
 
-void printRead(char *qname, int flag, char *rname, int pos, int mapq, int *cigar, int sizeCStr, char *rnext, int pnext, int tlen, char *seq, char *qual)
-{
-	int i = 0;
-	fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", qname, flag, rname, pos, mapq);
-	if (cigar != NULL)
-		for (i = 0; i < sizeCStr; i++)
-			fprintf(stdout,(i % 2 == 0 ? "%d":"%c"), cigar[i]);
-	else
-		fprintf(stdout, "*");
-	fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", rnext, pnext, tlen, seq, qual);
-}
-
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
 	xmlTextReaderPtr reader;
 	BlastOutputPtr blastOP = NULL;
 	int evt = 1;
-	int *cigar = NULL;
-	int sizeCStr = 0;
-	int flag = 0;
-	IterationPtr it = NULL;
-	Hsp *hsp = NULL;
-	Hsp *hspCur = NULL;
-	gzFile fp;
-	ShortReadPtr seq = NULL;
+	IterationPtr itFor = NULL;
+	IterationPtr itRev = NULL;
+	ShortReadPtr seqFor = NULL;
+	ShortReadPtr seqRev = NULL;
+	gzFile fp = NULL;
+	gzFile fp2 = NULL;
+	int inter = 1; // NEED TO PUT IT IN OPTION
 
-	if (argc < 3)
+	if (argc < 4)
 		ERROR("Wrong number of arguments\n", EXIT_FAILURE)
 	
 	reader = xmlNewTextReaderFilename(argv[1]);
@@ -56,45 +44,48 @@ int main(int argc, char **argv)
 
 	blastOP = parseBlastOutput(reader);
 
-	fp = gzopen(argv[2], "r");
+	if (parseDict(argv[2]))
+		ERROR("Error while reading the index base", EXIT_FAILURE)
 
+	fp = gzopen(argv[3], "r");
 	if (fp == NULL)
 		ERROR("Unable to open the FastQ\n", EXIT_FAILURE)
-
 	
+	if (argc == 5 && !inter)	
+	{
+		fp2 = gzopen(argv[4], "r");
+		if (fp2 == NULL)
+			ERROR("Unable to open the second FastQ\n", EXIT_FAILURE)
+	}
 
 	while (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "Iteration"))
 	{
-		it = parseIteration(reader);
-		seq = ShortReadNext(fp);
-		if (!strcmp(seq->name, it->iteration_query_def))
-		{
-			if (it->iteration_hits->hit_hsps != NULL)
-			{			
-				hsp = it->iteration_hits->hit_hsps;
-				hspCur = it->iteration_hits->hit_hsps;
-
-				while (hspCur != NULL)
-				{
-					if (hspCur->hsp_score > hsp->hsp_score)
-						hsp = hspCur;
-
-					hspCur = hspCur->next;
-				}
-
-				cigar = cigarStrBuilding(cigar, hsp, it->iteration_query_len, &sizeCStr);
-				printRead(it->iteration_query_def, flag, it->iteration_hits->hit_def, hsp->hsp_hit_from, hsp->hsp_score, cigar, sizeCStr, "*", 0, (hsp->hsp_hit_to)-(hsp->hsp_hit_from), seq->seq, seq->qual);
-			}
+		itFor = parseIteration(reader);
+		seqFor = shortReadNext(fp);
 		
+		if (fp2 != NULL || inter)
+		{
+			itRev = parseIteration(reader);
+			if (inter)
+				seqRev = shortReadNext(fp);
 			else
-				printRead(it->iteration_query_def, 0, "*", 0, 0, NULL, 0, "*", 0, 0, seq->seq, seq->qual);
+				seqRev = shortReadNext(fp2);
+			printSAM(itFor, itRev, seqFor, seqRev);
+			deallocIteration(itRev);
+			shortReadFree(seqRev);
 		}
-		deallocIteration(it);
+
+		else
+			printSAM(itFor, NULL, seqFor, NULL);
+
+		deallocIteration(itFor);
+		shortReadFree(seqFor);	
 	}
-	if (cigar != NULL)
-		free(cigar);
-	ShortReadFree(seq);
+	
 	gzclose(fp);
+	if (fp2 != NULL)
+		gzclose(fp2);
+		
 	deallocBlastOutput(blastOP);
 	
 	xmlFreeTextReader(reader);
@@ -103,4 +94,8 @@ int main(int argc, char **argv)
 	
 	return EXIT_SUCCESS;
 }
+
+
+
+
 
