@@ -70,7 +70,8 @@ int main(int argc, char** argv)
 				seqRev = shortReadNext(fp);
 			else
 				seqRev = shortReadNext(fp2);
-			printSAM(itFor, itRev, seqFor, seqRev);
+			if (printSAM(itFor, itRev, seqFor, seqRev) != 0)
+				ERROR("Error while printing SAM file", EXIT_FAILURE);
 			deallocIteration(itRev);
 			shortReadFree(seqRev);
 		}
