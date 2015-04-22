@@ -341,88 +341,98 @@ int parseDict(char* filename)
 }
 
 
-SamOutputPtr hitRecord(HitPtr hit, RVarPtr rVar)
-{
-	SamOutputPtr samOut;
+ItSamPtr** hitRecord(HitPtr hitFor, HitPtr hitRev, ItSamPtr** itSam, RVarPtr rVar)
+{	
+	int i = 0;
+	rVar->countRec++;
 	
-	if (hitCur != NULL)
-	{
-		if (hit->hit_hsps != NULL)
-			samOut = hspRecord(hit->hit_hsps, rVar, shortRefName(hit->hit_def));
+	itSam[rVar->countHit-1] = saferealloc(itSam[rVar->countHit-1], rVar->countRec * sizeof(ItSamPtr)); // Create and/or append a given Hit record table
+	itSam[rVar->countHit-1][rVar->countRec-1] = safecalloc(1, sizeof(ItSam)); // Create a new record
+	itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0] = safecalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the forward strand
+	itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0]->query = rVar->reads[0];
+	
+	if (hitRev == NULL) // Single End
+	{	
+		if (hitFor->hit_hsps == NULL) // Not mapped
+		{
+			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0]->flag |= 0x4;
+			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0]->rname = "*";
+			itSam[rVar->countHit-1][rVar->countRec-1]->score = 0;
+		}
 		else
 		{
-			samOut = safeCalloc(1, sizeof(SamOutput));
-			samOut->qname = rVar->qname;
-			samOut->flag |= 0x4;
-			samOut->rname = "*";
-			samOut->rnext = "*";
-			samOut->seq = rVar->seq;
-			samOut->qual = rVar->qual;
+			// flag
+			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0]->rname = shortRefName(hitFor->hit_def);
+			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0]->hsp = hitFor->hit_hsps;
+			if (cigarStrBuilding(itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0], hitFor->hit_hsps, rVar->queryLength) != 0)
+				ERROR("Error while building the cigar string", 1)
+			itSam[rVar->countHit-1][rVar->countRec-1]->score = hitFor->hit_hsps->hsp_score;
+			hitFor->hit_hsps = hitFor->hit_hsps->next;
+			if (hitFor->hit_hsps != NULL)
+				return hitRecord(hitFor, NULL, itSam, rVar); // Record the other HSPs if there are any
 		}
-		samOut->next = hitRecord(hit->next, rVar);
-		return samOut;
+		
+		if (hitFor->next != NULL)
+		{
+			rVar->countHit++;
+			rVar->countRec = 0;
+			itSam = saferealloc(itSam, rVar->countHit * sizeof(ItSamPtr*)); // Append the Hit list
+			return hitRecord(hitFor->next, NULL, itSam, rVar); // Record the other Hits if there are any
+		}
+		else
+			return itSam;
 	}
-	else
-		return NULL;
-}
-
-SamOutputPtr hspRecord(HspPtr hsp, RVarPtr rVar, char* rname)
-{
-	SamOutputPtr samOut;
 	
-	while (hsp != NULL)
-	{
-		samOut = safeCalloc(1, sizeof(SamOutput));
-		samOut->qname = rVar->qname;
-		samOut->flag |= 0x2;
-		samOut->rname = rname;
-		samOut->pos = hsp->hsp_hit_from;
-		samOut->mapq = hsp->hsp_score;
-		if (cigarStrBuilding(samOut, hsp, rVar->queryLength) != 0)
-			ERROR("Error while building the cigar string", 1)
-		samOut->rnext = 
+	// Only go there if it's paired end
+	
+	itSam[rVar->countHit-1][rVar->countRec-1]->samOut[1] = safecalloc(1, sizeof(SamOutput));
+	itSam[rVar->countHit-1][rVar->countRec-1]->samOut[1]->query = rVar->reads[1];
+	
+	if (hitFor->hit_hsps == NULL && hitRev->hit_hsps == NULL) // Both unmapped
+	{	
+		for (i = 0; i < 2; i++)
+		{
+			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[i]->flag |= 0x4;
+			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[i]->rname = "*";
+		}
+		
+		itSam[rVar->countHit-1][rVar->countRec-1]->score = 0;
 	}
-}
+	
+	else if (
 
-// for the flag, to substract you can use flag &= ~0x100 That way, you can flag every good alignment with 0x100 and then deflag the best when you know which one it is.
+	
 
-printRead(itFor->iteration_query_def, flag, shortRefName(itFor->iteration_hits->hit_def), hspFor->hsp_hit_from, hspFor->hsp_score, cigar, sizeCStr, "*", 0, (hspFor->hsp_hit_to)-(hspFor->hsp_hit_from), seqFor->seq, seqFor->qual);
+	// compare the name of the hits
+	
+		
 
-typedef struct itSam_t
+
+// for the flag, to substract you can use flag &= ~0x100
+
+
+typedef struct ItSam_t
 {
-	SamOutputPtr samOutFor;
-	SamOutputPtr samOutRev;
-	RVarPtr rVar[2]; // 0:For 1:Rev
-}
+	SamOutputPtr samOut[2];
+	double score;
+} ItSam, *ItSamPtr;
 
 typedef struct RecordVariables_t
 {
-	HspPtr BestHsp;
-	int posBestHsp; // you need to sort by an alignment score corresponding to something like the distance between for and rev. No need to sort them but the best one must be flagged differently
-	int nbHsp;
-	char* qname;
-	char* seq;
-	char* qual;
-	int queryLength;
+	int countHit;
+	int countRec;
+	ShortReadPtr reads[2];
 } RVar, *RVarPtr;
 
 typedef struct SamOutput_t
 {
-	char* qname;
+	ShortReadPtr query;
+	HspPtr hsp;
 	int flag;
 	char* rname;
-	int pos;
-	int mapq;
 	int* cigar;
 	size_t sizeCStr;
-	char* rnext;
-	int pnext;
-	int tlen;
-	char* seq;
-	char* qual;
-	struct SamOutput_t* next;
 } SamOutput, *SamOutputPtr;
-
 
 
 
