@@ -57,7 +57,10 @@ int main(int argc, char** argv)
 		if (fp2 == NULL)
 			ERROR("Unable to open the second FastQ\n", EXIT_FAILURE)
 	}
-
+	
+	// TODO: Use the new hitRecord function instead of printSam. In the call for hitRecord, remember that it returns NULL in case of error
+	// TODO: Configure all the parameters of hitRecord. rVar->hitTmp = itRev->iteration_hits;
+	
 	while (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "Iteration"))
 	{
 		itFor = parseIteration(reader);
