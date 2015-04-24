@@ -41,13 +41,53 @@ typedef struct SamOutput_t
 } SamOutput, *SamOutputPtr;
 */
 
+typedef struct SamOutput_t
+{
+	ShortReadPtr query;
+	HspPtr hsp;
+	int flag;
+	char* rname;
+	int* cigar;
+	size_t sizeCStr;
+} SamOutput, *SamOutputPtr;
 
-int cigarStrBuilding(SamOutputPtr samOut, HspPtr hsp, int queryLength)
+typedef struct RecordSam_t
+{
+	SamOutputPtr samOut[2];
+	double score;
+} RecordSam, *RecordSamPtr;
+
+typedef struct SamHit_t
+{
+	RecordSamPtr* rsSam;
+	size_t countRec;
+} SamHit, *SamHitPtr;
+
+typedef struct IterationSam_t
+{
+	SamHitPtr* samHits;
+	size_t countHit;
+} IterationSam, *IterationSamPtr;
+
+typedef struct RecordVariables_t
+{
+	int end;
+	int tmpHitNb;
+	HitPtr hitTmp;
+	HspPtr hspTmp;
+	ShortReadPtr reads[2];
+} RVar, *RVarPtr;
+
+
+
+int cigarStrBuilding(SamOutputPtr samOut)
 {
 	int pos = 0;
 	int count = 0;
 	size_t sizeCStr = 0;
 	int* cigarStr = samOut->cigar;
+	HspPtr hsp = samOut->hsp;
+	int queryLength = samOut->query->read_len;
 	
 	if (queryLength > (hsp->hsp_align_len) && (hsp->hsp_query_from) > 1)
 	{
@@ -75,8 +115,7 @@ int cigarStrBuilding(SamOutputPtr samOut, HspPtr hsp, int queryLength)
 			CSTRMACRO('X', (hsp->hsp_hseq[pos] != '-' && hsp->hsp_qseq[pos] != '-' && hsp->hsp_hseq[pos] != hsp->hsp_qseq[pos]))
 		
 		if (cigarStr[sizeCStr-2] >= 100 && cigarStr[sizeCStr-1] == 'D')
-			cigarStr[sizeCStr-1] = 'N';
-		
+			cigarStr[sizeCStr-1] = 'N';	
 	}
 	
 	if (queryLength > (hsp->hsp_align_len) && (queryLength - hsp->hsp_query_to) > 1)
@@ -92,16 +131,48 @@ int cigarStrBuilding(SamOutputPtr samOut, HspPtr hsp, int queryLength)
 	return 0;
 }
 
-void printRead(SamOutputPtr samOut) // TODO: Rewrite the function so it can be used with the structures of hitRecord and rename it printSam
+void printSam(IterationSamPtr itSam)
 {
-	size_t i = 0;
-	fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", samOut->qname, samOut->flag, samOut->rname, samOut->pos, samOut->mapq);
-	if (samOut->cigar != NULL)
-		for (i = 0; i < samOut->sizeCStr; i++)
-			fprintf(stdout,(i % 2 == 0 ? "%d":"%c"), samOut->cigar[i]);
-	else
-		fprintf(stdout, "*");
-	fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", samOut->rnext, samOut->pnext, samOut->tlen, samOut->seq, samOut->qual);
+	int i = 0;
+	int j = 0;
+	int k = 0;
+	size_t l = 0;
+	RecordSamPtr rSam;
+	char* rnext = NULL;
+	int pnext = 0;
+	
+	for (i = 0; i < itSam->countHit; i++)
+	{
+		for (j = 0; j < itSam->samHits[i]->countRec; j++)
+		{
+			for (k = 0; k < 2; k++)
+			{
+				rSam = itSam->samHits[i]->rsSam[j];
+				if (rSam->samOut[k] == NULL) continue;
+				
+				if (!k ? rSam->samOut[1] : rSam->samOut[0]) != NULL)
+				{
+					rnext = ((!k ? rSam->samOut[1]->rname : rSam->samOut[0]->rname) == NULL ? "*" : (!k ? rSam->samOut[1]->rname : rSam->samOut[0]->rname));
+					pnext = ((!k ? rSam->samOut[1]->hsp : rSam->samOut[0]->hsp) == NULL ? 0 : (!k ? rSam->samOut[1]->hsp->hsp_hit_from : rSam->samOut[0]->hsp->hsp_hit_from));
+				}
+				else
+				{
+					rnext = "*";
+					pnext = 0;
+				}
+					
+				if (rSam->samOut[k]->hsp == NULL)
+					fprintf(stdout, "%s\t%d\t*\t0\t0\t*\t%s\t%d\t0\t%s\t%s\n", rSam->samOut[k]->query->name, rSam->samOut[k]->flag, rnext, pnext, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
+				else
+				{
+					fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", rSam->samOut[k]->query->name, rSam->samOut[k]->flag, rSam->samOut[k]->rname, rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->hsp->hsp_score);
+					for (l = 0; l < rSam->samOut[k]->sizeCStr; l++)
+						fprintf(stdout,(l % 2 == 0 ? "%d":"%c"), samOut->cigar[l]);
+					fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", rnext, pnext, rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
+				}
+			}
+		}
+	}
 }
 
 static char* shortRefName(char* name)
@@ -111,6 +182,220 @@ static char* shortRefName(char* name)
 		*p = 0;
 	return name;
 }
+
+IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, RVarPtr rVar)
+{	
+	int i = 0;
+	size_t countHit = itSam->countHit;
+	size_t countRec;
+	RecordSamPtr rSam;
+	
+	itSam->samHits[countHit-1]->countRec++;
+	countRec = itSam->samHits[countHit-1]->countRec;
+	
+	itSam->samHits[countHit-1]->rsSam = (RecordSamPtr*) saferealloc(itSam->samHits[countHit-1]->rsSam, countRec * sizeof(RecordSamPtr)); // Create and/or append a given Hit record table
+	itSam->samHits[countHit-1]->rsSam[countRec-1] = (RecordSamPtr) safecalloc(1, sizeof(RecordSam)); // Create a new record
+	rSam = itSam->samHits[countHit-1]->rsSam[countRec-1];
+	
+	if (!rVar->end)
+	{
+		rSam->samOut[0] = (SamOutputPtr) safecalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the forward strand
+		rSam->samOut[0]->query = rVar->reads[0];
+	}
+	
+	if (hitRev != NULL)
+	{
+		rSam->samOut[1] = (SamOutputPtr) safecalloc(1, sizeof(SamOutput));
+		rSam->samOut[1]->query = rVar->reads[1];
+	}
+	
+	if (hitRev == NULL) // Single end or the forward strand is mapped on a reference the reverse strand is not
+	{	
+		if (hitFor->hit_hsps == NULL) // Not mapped
+		{
+			rSam->samOut[0]->flag |= 0x4;
+			rSam->score = 0.0;
+		}
+		else
+		{
+			// TODO: flag
+			rSam->samOut[0]->rname = shortRefName(hitFor->hit_def);
+			rSam->samOut[0]->hsp = hitFor->hit_hsps;
+			if (cigarStrBuilding(rSam->samOut[0]) != 0)
+				ERROR("Error while building the cigar string", NULL)
+			rSam->score = (double) hitFor->hit_hsps->hsp_score;
+			hitFor->hit_hsps = hitFor->hit_hsps->next;
+			if (hitFor->hit_hsps != NULL)
+				return hitRecord(hitFor, NULL, itSam, rVar); // Record the other HSPs if there are any
+		}
+	}
+	
+	else if (rVar->end) // The reverse strand is mapped on a reference where the forward strand is not
+	{
+		if (rVar->tmpHitNb == countHit)
+		{
+			// TODO: flag
+			rSam->samOut[1]->rname = shortRefName(hitRev->hit_def);
+			rSam->samOut[1]->hsp = hitRev->hit_hsps;
+			if (cigarStrBuilding(rSam->samOut[1]) != 0)
+				ERROR("Error while building the cigar string", NULL)
+			rSam->score = hitRev->hit_hsps->hsp_score;
+			hitRev->hit_hsps = hitRev->hit_hsps->next;
+			if (hitRev->hit_hsps != NULL)
+				return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HSPs if there are any
+		}
+	}
+	
+	else if (hitFor->hit_def == NULL && hitRev->hit_def == NULL) // Both unmapped
+	{	
+		for (i = 0; i < 2; i++)
+			rSam->samOut[i]->flag |= 0x4;
+		
+		rSam->score = 0.0;
+	}
+	
+	else if (strcmp(hitFor->hit_def, hitRev->hit_def))
+	{
+		if (hitRev->next == NULL || !strcmp(hitFor->hit_def, hitRev->next->hit_def))
+		{
+			itSam->countHit++;
+			itSam->samHits = (SamHitPtr*) saferealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
+			itSam->samHits[itSam->countHit-1]->countRec = 0;
+		}
+		
+		return hitRecord(hitFor, hitRev->next, itSam, rVar);
+	}
+	
+	else if (strcmp(hitFor->hit_def, hitRev->hit_def) == 0) // Forward and reverse strand are mapped on the same reference
+	{
+		if (rVar->hspTmp == NULL)
+			hspTmp = hitRev->hit_hsps;
+		
+		for (i = 0; i < 2; i++)
+		{
+			rSam->samOut[i]->hsp = (!i ? hitFor->hit_hsps : hitRev->hit_hsps);
+			rSam->samOut[i]->rname = (!i ? hitFor->hit_def : hitRev->hit_def);
+			if (cigarStrBuilding(rSam->samOut[i]) != 0)
+				ERROR("Error while building the cigar string", NULL)
+		}
+		// TODO: flag and score
+		hitRev->hit_hsps = hitRev->hit_hsps->next;
+		if (hitRev->hit_hsps != NULL)
+			return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HitRev HSPs if there are any
+		else
+		{
+			hitFor->hit_hsps = hitFor->hit_hsps->next;
+			if (hitFor->hit_hsps != NULL)
+			{
+				hitRev->hit_hsps = rVar->hspTmp;
+				rVar->hspTmp = NULL;
+				return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HitFor HSPs if there are any
+			}
+		}
+	}
+	
+	
+	if (hitFor->next != NULL)
+	{
+		itSam->countHit++;
+		itSam->samHits = (SamHitPtr*) saferealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
+		itSam->samHits[itSam->countHit-1]->countRec = 0;
+		if (hitRev == NULL)
+		{
+			if (rVar->hitTmp == NULL)
+				return hitRecord(hitFor->next, NULL, itSam, rVar);
+			else
+				return hitRecord(hitFor->next, rVar->hitTmp, itSam, rVar);
+		}
+		else
+			return hitRecord(hitFor->next, hitRev->next, itSam, rVar);
+	}
+	
+	if (rVar->hitTmp != NULL)
+	{
+		if (!rVar->end)
+		{
+			hitRev = rVar->hitTmp;
+			rVar->end = 1;
+		}
+	
+		if (hitRev->next != NULL)
+		{
+			for (rVar->tmpHitNb = 0; rVar->tmpHitNb < countHit; rVar->tmpHitNb++)
+			{
+				if (!strcmp(hitRev->next->hit_def, itSam->samHits[rVar->tmpHitNb]->rsSam[0]->samOut[1]->rname))
+					break;
+			}
+			
+			if (rVar->tmpHitNb == countHit)
+			{
+				itSam->countHit++;
+				itSam->samHits = (SamHitPtr*) saferealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
+				itSam->samHits[itSam->countHit-1]->countRec = 0;
+			}
+			return hitRecord(hitFor, hitRev->next, itSam, rVar);
+		}
+	}
+	
+	return itSam;	
+
+
+// for the flag, to substract you can use flag &= ~0x100
+
+int parseDict(char* filename)
+{
+	FILE* reader;
+	char* str = NULL;
+	int c;
+	int lenStr = 0;
+	int countSpace = 0;
+	
+	reader = fopen(filename, "r");
+
+	if (reader == NULL)
+		ERROR("Error while opening the file\n", 1)
+
+	do
+	{
+		if (countSpace > 2 || !countSpace)
+			do
+			{
+				c = fgetc(reader);
+			} while (c != '\n' && c != EOF);
+
+		lenStr = 0;
+		countSpace = 0;
+		str = NULL;
+		c = fgetc(reader);
+		lenStr++;
+
+		while (c != '\n' && c != EOF && countSpace <= 2)
+		{
+			if (c == '\t')
+				countSpace++;			
+			
+			STRBUILDINGMACRO(str, lenStr+1, char, 1)
+			str[lenStr-1] = (char) c;
+			c = fgetc(reader);
+			lenStr++;
+		}
+
+		STRBUILDINGMACRO(str, lenStr, char, 1)
+		str[lenStr-1] = '\0';
+
+		fprintf(stdout, "%s", str);
+		free(str);
+		if (c != EOF)
+			fprintf(stdout, "\n");
+
+	} while (c != EOF);
+	
+	fclose(reader);
+	
+	return 0;
+}
+
+
 
 /*
 int printSAM(IterationPtr itFor, IterationPtr itRev, ShortReadPtr seqFor, ShortReadPtr seqRev)
@@ -291,220 +576,5 @@ int printSAM(IterationPtr itFor, IterationPtr itRev, ShortReadPtr seqFor, ShortR
 	return 0;
 }
 */
-
-int parseDict(char* filename)
-{
-	FILE* reader;
-	char* str = NULL;
-	int c;
-	int lenStr = 0;
-	int countSpace = 0;
-	
-	reader = fopen(filename, "r");
-
-	if (reader == NULL)
-		ERROR("Error while opening the file\n", 1)
-
-	do
-	{
-		if (countSpace > 2 || !countSpace)
-			do
-			{
-				c = fgetc(reader);
-			} while (c != '\n' && c != EOF);
-
-		lenStr = 0;
-		countSpace = 0;
-		str = NULL;
-		c = fgetc(reader);
-		lenStr++;
-
-		while (c != '\n' && c != EOF && countSpace <= 2)
-		{
-			if (c == '\t')
-				countSpace++;			
-			
-			STRBUILDINGMACRO(str, lenStr+1, char, 1)
-			str[lenStr-1] = (char) c;
-			c = fgetc(reader);
-			lenStr++;
-		}
-
-		STRBUILDINGMACRO(str, lenStr, char, 1)
-		str[lenStr-1] = '\0';
-
-		fprintf(stdout, "%s", str);
-		free(str);
-		if (c != EOF)
-			fprintf(stdout, "\n");
-
-	} while (c != EOF);
-	
-	fclose(reader);
-	
-	return 0;
-}
-
-
-ItSamPtr** hitRecord(HitPtr hitFor, HitPtr hitRev, ItSamPtr** itSam, RVarPtr rVar)
-{	
-	int i = 0;
-	rVar->countRec++;
-	
-	itSam[rVar->countHit-1] = saferealloc(itSam[rVar->countHit-1], rVar->countRec * sizeof(ItSamPtr)); // Create and/or append a given Hit record table
-	itSam[rVar->countHit-1][rVar->countRec-1] = safecalloc(1, sizeof(ItSam)); // Create a new record
-	if (!rVar->end)
-	{
-		itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0] = safecalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the forward strand
-		itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0]->query = rVar->reads[0];
-	}
-	
-	if (hitRev != NULL)
-	{
-		itSam[rVar->countHit-1][rVar->countRec-1]->samOut[1] = safecalloc(1, sizeof(SamOutput));
-		itSam[rVar->countHit-1][rVar->countRec-1]->samOut[1]->query = rVar->reads[1];
-	}
-	
-	if (hitRev == NULL) // Single end or the forward strand is mapped on a reference the reverse strand is not
-	{	
-		if (hitFor->hit_hsps == NULL) // Not mapped
-		{
-			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0]->flag |= 0x4;
-			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0]->rname = "*";
-			itSam[rVar->countHit-1][rVar->countRec-1]->score = 0;
-		}
-		else
-		{
-			// flag
-			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0]->rname = shortRefName(hitFor->hit_def);
-			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0]->hsp = hitFor->hit_hsps;
-			if (cigarStrBuilding(itSam[rVar->countHit-1][rVar->countRec-1]->samOut[0], hitFor->hit_hsps, rVar->queryLength) != 0)
-				ERROR("Error while building the cigar string", NULL)
-			itSam[rVar->countHit-1][rVar->countRec-1]->score = hitFor->hit_hsps->hsp_score;
-			hitFor->hit_hsps = hitFor->hit_hsps->next;
-			if (hitFor->hit_hsps != NULL)
-				return hitRecord(hitFor, NULL, itSam, rVar); // Record the other HSPs if there are any
-		}
-	}
-	
-	else if (rVar->end) // The reverse strand is mapped on a reference where the forward strand is not
-	{
-		if (rVar->tmpHitNb == rVar->countHit)
-		{
-			// flag
-			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[1]->rname = shortRefName(hitRev->hit_def);
-			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[1]->hsp = hitRev->hit_hsps;
-			if (cigarStrBuilding(itSam[rVar->countHit-1][rVar->countRec-1]->samOut[1], hitRev->hit_hsps, rVar->queryLength) != 0)
-				ERROR("Error while building the cigar string", NULL)
-			itSam[rVar->countHit-1][rVar->countRec-1]->score = hitRev->hit_hsps->hsp_score;
-			hitRev->hit_hsps = hitRev->hit_hsps->next;
-			if (hitRev->hit_hsps != NULL)
-				return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HSPs if there are any
-		}
-	}
-	
-	else if (hitFor->hit_def == NULL && hitRev->hit_def == NULL) // Both unmapped
-	{	
-		for (i = 0; i < 2; i++)
-		{
-			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[i]->flag |= 0x4;
-			itSam[rVar->countHit-1][rVar->countRec-1]->samOut[i]->rname = "*";
-		}
-		
-		itSam[rVar->countHit-1][rVar->countRec-1]->score = 0;
-	}
-	
-	else if (strcmp(hitFor->hit_def, hitRev->hit_def))
-	{
-		if (hitRev->next == NULL || !strcmp(hitFor->hit_def, hitRev->next->hit_def))
-		{
-			rVar->countHit++;
-			rVar->countRec = 0;
-			itSam = saferealloc(itSam, rVar->countHit * sizeof(ItSamPtr*)); // Append the Hit list
-		}
-		
-		return hitRecord(hitFor, hitRev->next, itSam, rVar);
-	}
-	
-	else if (strcmp(hitFor->hit_def, hitRev->hit_def) == 0) // Forward and reverse strand are mapped on the same reference
-	{
-		// TODO: Record each hspFor with every hspRev
-	}
-	
-	
-	if (hitFor->next != NULL)
-	{
-		rVar->countHit++;
-		rVar->countRec = 0;
-		itSam = saferealloc(itSam, rVar->countHit * sizeof(ItSamPtr*)); // Append the Hit list
-		if (hitRev == NULL)
-		{
-			if (rVar->hitTmp == NULL)
-				return hitRecord(hitFor->next, NULL, itSam, rVar);
-			else
-				return hitRecord(hitFor->next, rVar->hitTmp, itSam, rVar);
-		}
-		else
-			return hitRecord(hitFor->next, hitRev->next, itSam, rVar);
-	}
-	
-	if (rVar->hitTmp != NULL)
-	{
-		if (!rVar->end)
-		{
-			hitRev = rVar->hitTmp;
-			rVar->end = 1;
-		}
-	
-		if (hitRev->next != NULL)
-		{
-			for (rVar->tmpHitNb = 0; rVar->tmpHitNb < rVar->countHit; rVar->tmpHitNb++)
-			{
-				if (!strcmp(hitRev->next->hit_def, itSam[rVar->tmpHitNb][0]->samOut[1]->rname))
-					break;
-			}
-			
-			if (rVar->tmpHitNb == rVar->countHit)
-			{
-				rVar->countHit++;
-				rVar->countRec = 0;
-				itSam = saferealloc(itSam, rVar->countHit * sizeof(ItSamPtr*)); // Append the Hit list
-			}
-			return hitRecord(hitFor, hitRev->next, itSam, rVar);
-		}
-	}
-	
-	return itSam;	
-
-
-// for the flag, to substract you can use flag &= ~0x100
-
-
-typedef struct ItSam_t
-{
-	SamOutputPtr samOut[2];
-	double score;
-} ItSam, *ItSamPtr;
-
-typedef struct RecordVariables_t
-{
-	int countHit;
-	int countRec;
-	int tmpHitNb;
-	int end;
-	HitPtr hitTmp;
-	ShortReadPtr reads[2];
-} RVar, *RVarPtr;
-
-typedef struct SamOutput_t
-{
-	ShortReadPtr query;
-	HspPtr hsp;
-	int flag;
-	char* rname;
-	int* cigar;
-	size_t sizeCStr;
-} SamOutput, *SamOutputPtr;
-
 
 
