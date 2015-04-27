@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <libxml/xmlreader.h>
+#include <zlib.h>
 #include "parseXML.h"
 #include "blastSam.h"
 #include "utils.h"
@@ -22,26 +24,8 @@
 		} \
 		pos--;}
 
-/*
-typedef struct SamOutput_t
-{
-	char* qname;
-	int flag;
-	char* rname;
-	int pos;
-	int mapq;
-	int* cigar;
-	size_t sizeCStr;
-	char* rnext;
-	int pnext;
-	int tlen;
-	char* seq;
-	char* qual;
-	struct SamOutput_t* next;
-} SamOutput, *SamOutputPtr;
-*/
 
-typedef struct SamOutput_t
+typedef struct SamOutput
 {
 	ShortReadPtr query;
 	HspPtr hsp;
@@ -51,25 +35,25 @@ typedef struct SamOutput_t
 	size_t sizeCStr;
 } SamOutput, *SamOutputPtr;
 
-typedef struct RecordSam_t
+typedef struct RecordSam
 {
 	SamOutputPtr samOut[2];
 	double score;
 } RecordSam, *RecordSamPtr;
 
-typedef struct SamHit_t
+typedef struct SamHit
 {
 	RecordSamPtr* rsSam;
 	size_t countRec;
 } SamHit, *SamHitPtr;
 
-typedef struct IterationSam_t
+typedef struct IterationSam
 {
 	SamHitPtr* samHits;
 	size_t countHit;
 } IterationSam, *IterationSamPtr;
 
-typedef struct RecordVariables_t
+typedef struct RecordVariables
 {
 	int end;
 	int tmpHitNb;
@@ -78,9 +62,65 @@ typedef struct RecordVariables_t
 	ShortReadPtr reads[2];
 } RVar, *RVarPtr;
 
+static int parseDict(char* filename)
+{
+	FILE* reader;
+	char* str = NULL;
+	int c;
+	size_t lenStr = 0;
+	int countSpace = 0;
+	
+	reader = safeFOpen(filename, "r");
 
+	do
+	{
+		if (countSpace > 2 || !countSpace)
+			do
+			{
+				c = fgetc(reader);
+			} while (c != '\n' && c != EOF);
 
-int cigarStrBuilding(SamOutputPtr samOut)
+		lenStr = 0;
+		countSpace = 0;
+		str = NULL;
+		c = fgetc(reader);
+		lenStr++;
+
+		while (c != '\n' && c != EOF && countSpace <= 2)
+		{
+			if (c == '\t')
+				countSpace++;			
+			
+			str = (char*) safeRealloc(str, lenStr+1);
+			str[lenStr-1] = (char) c;
+			c = fgetc(reader);
+			lenStr++;
+		}
+
+		str = (char*) safeRealloc(str, lenStr);
+		str[lenStr-1] = '\0';
+
+		fprintf(stdout, "%s", str);
+		free(str);
+		if (c != EOF)
+			fprintf(stdout, "\n");
+
+	} while (c != EOF);
+	
+	fclose(reader);
+	
+	return 0;
+}
+
+static char* shortRefName(char* name)
+{
+	char* p = strpbrk(name," \t"); 
+	if(p != 0)
+		*p = 0;
+	return name;
+}
+
+static void cigarStrBuilding(SamOutputPtr samOut)
 {
 	int pos = 0;
 	int count = 0;
@@ -92,7 +132,7 @@ int cigarStrBuilding(SamOutputPtr samOut)
 	if (queryLength > (hsp->hsp_align_len) && (hsp->hsp_query_from) > 1)
 	{
 		sizeCStr += 2;
-		STRBUILDINGMACRO(cigarStr, sizeCStr, int, 1)
+		cigarStr = (int*) safeRealloc(cigarStr, sizeCStr * sizeof(int));
 		cigarStr[0] = hsp->hsp_query_from - 1;
 		cigarStr[1] = 'S';
 	}
@@ -100,7 +140,7 @@ int cigarStrBuilding(SamOutputPtr samOut)
 	for (pos = 0; pos < (hsp->hsp_align_len); pos++)
 	{	
 		sizeCStr += 2;
-		STRBUILDINGMACRO(cigarStr, sizeCStr, int, 1)
+		cigarStr = (int*) safeRealloc(cigarStr, sizeCStr * sizeof(int));
 		
 		if (hsp->hsp_hseq[pos] == '-')
 			CSTRMACRO('I', (hsp->hsp_hseq[pos] == '-'))
@@ -121,69 +161,16 @@ int cigarStrBuilding(SamOutputPtr samOut)
 	if (queryLength > (hsp->hsp_align_len) && (queryLength - hsp->hsp_query_to) > 1)
 	{
 		sizeCStr += 2;
-		STRBUILDINGMACRO(cigarStr, sizeCStr, int, 1)
+		cigarStr = (int*) safeRealloc(cigarStr, sizeCStr * sizeof(int));
 		cigarStr[sizeCStr-2] = queryLength - hsp->hsp_query_to;
 		cigarStr[sizeCStr-1] = 'S';
 	}
 	
 	samOut->sizeCStr = sizeCStr;
 	samOut->cigar = cigarStr;
-	return 0;
 }
 
-void printSam(IterationSamPtr itSam)
-{
-	int i = 0;
-	int j = 0;
-	int k = 0;
-	size_t l = 0;
-	RecordSamPtr rSam;
-	char* rnext = NULL;
-	int pnext = 0;
-	
-	for (i = 0; i < itSam->countHit; i++)
-	{
-		for (j = 0; j < itSam->samHits[i]->countRec; j++)
-		{
-			for (k = 0; k < 2; k++)
-			{
-				rSam = itSam->samHits[i]->rsSam[j];
-				if (rSam->samOut[k] == NULL) continue;
-				
-				if (!k ? rSam->samOut[1] : rSam->samOut[0]) != NULL)
-				{
-					rnext = ((!k ? rSam->samOut[1]->rname : rSam->samOut[0]->rname) == NULL ? "*" : (!k ? rSam->samOut[1]->rname : rSam->samOut[0]->rname));
-					pnext = ((!k ? rSam->samOut[1]->hsp : rSam->samOut[0]->hsp) == NULL ? 0 : (!k ? rSam->samOut[1]->hsp->hsp_hit_from : rSam->samOut[0]->hsp->hsp_hit_from));
-				}
-				else
-				{
-					rnext = "*";
-					pnext = 0;
-				}
-					
-				if (rSam->samOut[k]->hsp == NULL)
-					fprintf(stdout, "%s\t%d\t*\t0\t0\t*\t%s\t%d\t0\t%s\t%s\n", rSam->samOut[k]->query->name, rSam->samOut[k]->flag, rnext, pnext, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
-				else
-				{
-					fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", rSam->samOut[k]->query->name, rSam->samOut[k]->flag, rSam->samOut[k]->rname, rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->hsp->hsp_score);
-					for (l = 0; l < rSam->samOut[k]->sizeCStr; l++)
-						fprintf(stdout,(l % 2 == 0 ? "%d":"%c"), samOut->cigar[l]);
-					fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", rnext, pnext, rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
-				}
-			}
-		}
-	}
-}
-
-static char* shortRefName(char* name)
-{
-	char* p = strpbrk(name," \t"); 
-	if(p != 0)
-		*p = 0;
-	return name;
-}
-
-IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, RVarPtr rVar)
+static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, RVarPtr rVar)
 {	
 	int i = 0;
 	size_t countHit = itSam->countHit;
@@ -193,23 +180,23 @@ IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, R
 	itSam->samHits[countHit-1]->countRec++;
 	countRec = itSam->samHits[countHit-1]->countRec;
 	
-	itSam->samHits[countHit-1]->rsSam = (RecordSamPtr*) saferealloc(itSam->samHits[countHit-1]->rsSam, countRec * sizeof(RecordSamPtr)); // Create and/or append a given Hit record table
-	itSam->samHits[countHit-1]->rsSam[countRec-1] = (RecordSamPtr) safecalloc(1, sizeof(RecordSam)); // Create a new record
+	itSam->samHits[countHit-1]->rsSam = (RecordSamPtr*) safeRealloc(itSam->samHits[countHit-1]->rsSam, countRec * sizeof(RecordSamPtr)); // Create and/or append a given Hit record table
+	itSam->samHits[countHit-1]->rsSam[countRec-1] = (RecordSamPtr) safeCalloc(1, sizeof(RecordSam)); // Create a new record
 	rSam = itSam->samHits[countHit-1]->rsSam[countRec-1];
 	
 	if (!rVar->end)
 	{
-		rSam->samOut[0] = (SamOutputPtr) safecalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the forward strand
+		rSam->samOut[0] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the forward strand
 		rSam->samOut[0]->query = rVar->reads[0];
 	}
 	
 	if (hitRev != NULL)
 	{
-		rSam->samOut[1] = (SamOutputPtr) safecalloc(1, sizeof(SamOutput));
+		rSam->samOut[1] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput));
 		rSam->samOut[1]->query = rVar->reads[1];
 	}
 	
-	if (hitRev == NULL) // Single end or the forward strand is mapped on a reference the reverse strand is not
+	if (hitRev == NULL) // Single end or the forward strand is mapped on a reference where the reverse strand is not
 	{	
 		if (hitFor->hit_hsps == NULL) // Not mapped
 		{
@@ -221,8 +208,7 @@ IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, R
 			// TODO: flag
 			rSam->samOut[0]->rname = shortRefName(hitFor->hit_def);
 			rSam->samOut[0]->hsp = hitFor->hit_hsps;
-			if (cigarStrBuilding(rSam->samOut[0]) != 0)
-				ERROR("Error while building the cigar string", NULL)
+			cigarStrBuilding(rSam->samOut[0]);
 			rSam->score = (double) hitFor->hit_hsps->hsp_score;
 			hitFor->hit_hsps = hitFor->hit_hsps->next;
 			if (hitFor->hit_hsps != NULL)
@@ -237,8 +223,7 @@ IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, R
 			// TODO: flag
 			rSam->samOut[1]->rname = shortRefName(hitRev->hit_def);
 			rSam->samOut[1]->hsp = hitRev->hit_hsps;
-			if (cigarStrBuilding(rSam->samOut[1]) != 0)
-				ERROR("Error while building the cigar string", NULL)
+			cigarStrBuilding(rSam->samOut[1]);
 			rSam->score = hitRev->hit_hsps->hsp_score;
 			hitRev->hit_hsps = hitRev->hit_hsps->next;
 			if (hitRev->hit_hsps != NULL)
@@ -259,7 +244,7 @@ IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, R
 		if (hitRev->next == NULL || !strcmp(hitFor->hit_def, hitRev->next->hit_def))
 		{
 			itSam->countHit++;
-			itSam->samHits = (SamHitPtr*) saferealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
+			itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
 			itSam->samHits[itSam->countHit-1]->countRec = 0;
 		}
 		
@@ -275,8 +260,7 @@ IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, R
 		{
 			rSam->samOut[i]->hsp = (!i ? hitFor->hit_hsps : hitRev->hit_hsps);
 			rSam->samOut[i]->rname = (!i ? hitFor->hit_def : hitRev->hit_def);
-			if (cigarStrBuilding(rSam->samOut[i]) != 0)
-				ERROR("Error while building the cigar string", NULL)
+			cigarStrBuilding(rSam->samOut[i]);
 		}
 		// TODO: flag and score
 		hitRev->hit_hsps = hitRev->hit_hsps->next;
@@ -294,11 +278,10 @@ IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, R
 		}
 	}
 	
-	
 	if (hitFor->next != NULL)
 	{
 		itSam->countHit++;
-		itSam->samHits = (SamHitPtr*) saferealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
+		itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
 		itSam->samHits[itSam->countHit-1]->countRec = 0;
 		if (hitRev == NULL)
 		{
@@ -330,71 +313,174 @@ IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, R
 			if (rVar->tmpHitNb == countHit)
 			{
 				itSam->countHit++;
-				itSam->samHits = (SamHitPtr*) saferealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
+				itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
 				itSam->samHits[itSam->countHit-1]->countRec = 0;
 			}
 			return hitRecord(hitFor, hitRev->next, itSam, rVar);
 		}
 	}
 	
-	return itSam;	
+	return itSam;
 
+// NOTE: for the flag, to substract you can use flag &= ~0x100
 
-// for the flag, to substract you can use flag &= ~0x100
-
-int parseDict(char* filename)
+static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFile fp2, int inter)
 {
-	FILE* reader;
-	char* str = NULL;
-	int c;
-	int lenStr = 0;
-	int countSpace = 0;
+	IterationSamPtr itSam = NULL;
+	IterationPtr itFor = NULL;
+	IterationPtr itRev = NULL;
+	ShortReadPtr seqFor = NULL;
+	ShortReadPtr seqRev = NULL;
+	RVarPtr rVar = (RVarPtr) safeCalloc(1, sizeof(RVar));
 	
-	reader = fopen(filename, "r");
-
-	if (reader == NULL)
-		ERROR("Error while opening the file\n", 1)
-
-	do
+	if (fp2 != NULL || inter) // Paired end
 	{
-		if (countSpace > 2 || !countSpace)
-			do
-			{
-				c = fgetc(reader);
-			} while (c != '\n' && c != EOF);
-
-		lenStr = 0;
-		countSpace = 0;
-		str = NULL;
-		c = fgetc(reader);
-		lenStr++;
-
-		while (c != '\n' && c != EOF && countSpace <= 2)
-		{
-			if (c == '\t')
-				countSpace++;			
+		itFor = parseIteration(reader);
+		itRev = parseIteration(reader);
+		rVar->hitTmp = itRev->iteration_hits;
 			
-			STRBUILDINGMACRO(str, lenStr+1, char, 1)
-			str[lenStr-1] = (char) c;
-			c = fgetc(reader);
-			lenStr++;
-		}
+		rVar->reads[0] = shortReadNext(fp);
+		if (inter)
+			rVar->reads[1] = shortReadNext(fp);
+		else
+			rVar->reads[1] = shortReadNext(fp2);
+			
+		itSam = hitRecord(itFor->iteration_hits, itRev->iteration_hits, itSam, rVar);
 
-		STRBUILDINGMACRO(str, lenStr, char, 1)
-		str[lenStr-1] = '\0';
-
-		fprintf(stdout, "%s", str);
-		free(str);
-		if (c != EOF)
-			fprintf(stdout, "\n");
-
-	} while (c != EOF);
+		deallocIteration(itFor);
+		deallocIteration(itRev);
+		shortReadFree(rVar->reads[0]);
+		shortReadFree(rVar->reads[1]);
+	}
 	
-	fclose(reader);
+	else // Single end
+	{
+		itFor = parseIteration(reader);
+		rVar->reads[0] = shortReadNext(fp);
+		itSam = hitRecord(itFor->iteration_hits, NULL, itSam, rVar);
+		deallocIteration(itFor);
+		shortReadFree(rVar->reads[0]);
+	}
 	
-	return 0;
+	free(rVar);
+	
+	return itSam;
 }
 
+static void printSam(IterationSamPtr itSam)
+{
+	int i = 0;
+	int j = 0;
+	int k = 0;
+	int invk = 0;
+	size_t l = 0;
+	RecordSamPtr rSam;
+	char* rnext = NULL;
+	int pnext = 0;
+	
+	for (i = 0; i < itSam->countHit; i++)
+	{
+		for (j = 0; j < itSam->samHits[i]->countRec; j++)
+		{
+			for (k = 0; k < 2; k++)
+			{
+				invk = (k ? 0 : 1);
+				rSam = itSam->samHits[i]->rsSam[j];
+				if (rSam->samOut[k] == NULL) continue;
+				
+				if (rSam->samOut[invk] != NULL)
+				{
+					rnext = (rSam->samOut[invk]->rname == NULL ? "*" : rSam->samOut[invk]->rname);
+					pnext = (rSam->samOut[invk]->hsp == NULL ? 0 : rSam->samOut[invk]->hsp->hsp_hit_from);
+				}
+				else
+				{
+					rnext = "*";
+					pnext = 0;
+				}
+					
+				if (rSam->samOut[k]->hsp == NULL)
+					fprintf(stdout, "%s\t%d\t*\t0\t0\t*\t%s\t%d\t0\t%s\t%s\n", rSam->samOut[k]->query->name, rSam->samOut[k]->flag, rnext, pnext, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
+				else
+				{
+					fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", rSam->samOut[k]->query->name, rSam->samOut[k]->flag, rSam->samOut[k]->rname, rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->hsp->hsp_score);
+					for (l = 0; l < rSam->samOut[k]->sizeCStr; l++)
+						fprintf(stdout,(l % 2 == 0 ? "%d":"%c"), samOut->cigar[l]);
+					fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", rnext, pnext, rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
+				}
+			}
+		}
+	}
+}
+
+static void deallocItSam(IterationSamPtr itSam)
+{
+	int i = 0;
+	int j = 0;
+	int k = 0;
+	
+	for (i = 0; i < itSam->countHit; i++)
+	{
+		for (j = 0; j < itSam->samHits[i]->countRec; j++)
+		{
+			for (k = 0; k < 2; k++)
+			{
+				free(itSam->samHits[i]->rsSam[j]->samOut[k]->cigar);
+				free(itSam->samHits[i]->rsSam[j]->samOut[k]);
+			}
+			free(itSam->samHits[i]->rsSam[j]);
+		}
+		free(itSam->samHits[i]);
+	}
+	free(itSam);
+}
+
+void blastToSam(int argc, char** argv)
+{
+	xmlTextReaderPtr reader;
+	BlastOutputPtr blastOP = NULL;
+	gzFile fp = NULL;
+	gzFile fp2 = NULL;
+	int evt = 1;
+	int inter = 1; // TODO: Put it in option -> get_longopt/getopt (look at Jennifer's code)
+	IterationSamPtr itSam = NULL;
+	
+	reader = safeXmlNewTextReaderFilename(argv[1]);
+	
+	evt = safeXmlTextReaderRead(reader);
+
+	if (xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "BlastOutput"))
+		ERROR("The document is not a Blast output\n", EXIT_FAILURE)
+
+	evt = safeXmlTextReaderRead(reader);
+
+	blastOP = parseBlastOutput(reader);
+
+	if (parseDict(argv[2]))
+		ERROR("Error while reading the index base", EXIT_FAILURE)
+
+	fp = safeGzOpen(argv[3], "r");
+	
+	if (argc == 5 && !inter)	
+		fp2 = safeGzOpen(argv[4], "r");
+
+	while (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "Iteration"))
+	{
+		itSam = iterationRecord(reader, fp, fp2, inter);
+		printSam(itSam);
+		deallocItSam(itSam);
+	}
+	
+	gzclose(fp);
+	if (fp2 != NULL)
+		gzclose(fp2);
+		
+	deallocBlastOutput(blastOP);
+	
+	xmlFreeTextReader(reader);
+	xmlCleanupCharEncodingHandlers();
+	xmlDictCleanup();
+}
 
 
 /*

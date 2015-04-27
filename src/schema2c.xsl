@@ -21,9 +21,9 @@
 				end = 1; \
 			else \
 			{ \
-				evt = xmlTextReaderRead(reader); \
+				evt = safeXmlTextReaderRead(reader); \
 				STRUCT->FIELD = FUNCT; \
-				evt = xmlTextReaderRead(reader); \
+				evt = safeXmlTextReaderRead(reader); \
 			} \
 		}
 
@@ -45,7 +45,7 @@
 <xsl:template match="struct" mode="definition">
 <xsl:if test="$fileType='h'">
 /* start define <xsl:value-of select="@name"/> */
-typedef struct <xsl:value-of select="@name"/>_t
+typedef struct <xsl:value-of select="@name"/>
 {
 	<xsl:for-each select="field">
 	<xsl:choose>
@@ -55,25 +55,23 @@ typedef struct <xsl:value-of select="@name"/>_t
 		<xsl:otherwise><xsl:value-of select="@type"/>*</xsl:otherwise>		
 	</xsl:choose><xsl:text> </xsl:text><xsl:apply-templates select="." mode="cname"/>;
 	</xsl:for-each>
-	struct <xsl:value-of select="@name"/>_t* next;
+	struct <xsl:value-of select="@name"/>* next;
 } <xsl:value-of select="@name"/>, *<xsl:value-of select="@name"/>Ptr;
 </xsl:if>
 
 <xsl:if test="$fileType='c'">
-<xsl:value-of select="@name"/>Ptr parse<xsl:value-of select="@name"/>(xmlTextReaderPtr reader)
+<xsl:if test="@name!='BlastOutput' and @name!='Iteration'">static</xsl:if> <xsl:value-of select="@name"/>Ptr parse<xsl:value-of select="@name"/>(xmlTextReaderPtr reader)
 {
 	int evt = 1;
 	int end = 0;
-	<xsl:value-of select="@name"/>Ptr p = calloc(1, sizeof(<xsl:value-of select="@name"/>));
-	if (p == NULL)
-		ERROR("Failed memory allocation of <xsl:value-of select="@name"/> p", NULL)
+	<xsl:value-of select="@name"/>Ptr p = (<xsl:value-of select="@name"/>Ptr) safeCalloc(1, sizeof(<xsl:value-of select="@name"/>));
 	
-	evt = xmlTextReaderRead(reader);
+	evt = safeXmlTextReaderRead(reader);
 
 	if (xmlTextReaderNodeType(reader) == 15)
 		end = 1;
 	else
-		evt = xmlTextReaderRead(reader);
+		evt = safeXmlTextReaderRead(reader);
 	
 	while (evt == 1 &amp;&amp; !end)
 	{	
@@ -81,20 +79,17 @@ typedef struct <xsl:value-of select="@name"/>_t
 			end = 1;
 		<xsl:for-each select="field">
 		else if PARSEMACRO("<xsl:value-of select="@name"/>", p, <xsl:apply-templates select="." mode="cname"/>, <xsl:choose>
-				<xsl:when test="@type='string'">strdup((char*)xmlTextReaderConstValue(reader))</xsl:when>
+				<xsl:when test="@type='string'">safeStrdup((char*)xmlTextReaderConstValue(reader))</xsl:when>
 				<xsl:when test="@type='int'">(int) strtol((char*)xmlTextReaderConstValue(reader), NULL, 10)</xsl:when>
 				<xsl:when test="@type='double'">strtod((char*)xmlTextReaderConstValue(reader), NULL)</xsl:when>
 				<xsl:otherwise>parse<xsl:value-of select="@type"/>(reader)</xsl:otherwise>
 			</xsl:choose>)
 		</xsl:for-each>
-		evt = xmlTextReaderRead(reader);
+		evt = safeXmlTextReaderRead(reader);
 	}
-	
-	if (evt == -1)
-		ERROR("Error while reading the node", NULL)
 
 	if (xmlTextReaderNodeType(reader) != 15)
-		evt = xmlTextReaderRead(reader);
+		evt = safeXmlTextReaderRead(reader);
 	<xsl:if test="@name!='Iteration'">
 	if (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "<xsl:value-of select="@name"/>"))
 		p->next = parse<xsl:value-of select="@name"/>(reader);
@@ -102,7 +97,7 @@ typedef struct <xsl:value-of select="@name"/>_t
 	return p;
 }
 
-void dealloc<xsl:value-of select="@name"/>(<xsl:value-of select="@name"/>Ptr element)
+<xsl:if test="@name!='BlastOutput' and @name!='Iteration'">static</xsl:if> void dealloc<xsl:value-of select="@name"/>(<xsl:value-of select="@name"/>Ptr element)
 {
 	<xsl:if test="@name='BlastOutput' or @name='Iteration' or @name='Hit'">void* prec = NULL;</xsl:if>
 	<xsl:for-each select="field">
@@ -129,8 +124,10 @@ void dealloc<xsl:value-of select="@name"/>(<xsl:value-of select="@name"/>Ptr ele
 </xsl:template>
 
 <xsl:template match="struct" mode="prototype">
+<xsl:if test="@name='BlastOutput' or @name='Iteration'">
 <xsl:value-of select="@name"/>Ptr parse<xsl:value-of select="@name"/>(xmlTextReaderPtr reader);
 void dealloc<xsl:value-of select="@name"/>(<xsl:value-of select="@name"/>Ptr element);
+</xsl:if> 
 </xsl:template>
 
 <xsl:template match="struct|field" mode="cname">

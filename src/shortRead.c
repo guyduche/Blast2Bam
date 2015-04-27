@@ -6,7 +6,7 @@
 #include "shortRead.h"
 
 
-typedef struct shortRead_t
+typedef struct ShortRead
 {
 	char* name;
 	char* seq;
@@ -32,20 +32,10 @@ static char* gzReadLine(gzFile in, size_t* line_len)
 	buffer[len-1] = '\0';
 	*line_len = len-1;
 	
-	line = (char*) malloc(len);
-	if (line == NULL)
-		ERROR("Failed memory allocation of the new line", NULL)
+	line = (char*) safeMalloc(len);
 	memcpy(line, buffer, len);
 	
 	return line;
-}
-
-static ShortReadPtr shortReadNew()
-{
-	ShortReadPtr p = (ShortReadPtr) calloc(1, sizeof(ShortRead));
-	if (p == NULL)
-		ERROR("Failed memory allocation of the new short read", NULL)
-	return p;
 }
 
 void shortReadFree(ShortReadPtr ptr)
@@ -64,7 +54,7 @@ ShortReadPtr shortReadNext(gzFile in)
 	
 	if (gzeof(in)) return NULL;
 	
-	ptr = shortReadNew();
+	ptr = (ShortReadPtr) safeCalloc(1, sizeof(ShortRead));
 	
 	ptr->name = gzReadLine(in, &line_len) + 1;
 	ptr->seq = gzReadLine(in, &line_len);

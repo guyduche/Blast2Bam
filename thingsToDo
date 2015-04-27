@@ -9,10 +9,8 @@ option for interleaved
 
 pairing of forward and reverse
 
-safe functions
-
-rewriting of blastSam
-
 look at the casts in shortread.c
 
 chimeric alignments
+
+move the bin makefile to src
