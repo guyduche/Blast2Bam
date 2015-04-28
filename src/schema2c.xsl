@@ -6,8 +6,9 @@
 <xsl:if test="$fileType='h'">
 #ifndef PARSEXML_H_INCLUDED
 #define PARSEXML_H_INCLUDED
-</xsl:if>
+
 #include &lt;libxml/xmlreader.h&gt;
+</xsl:if>
 <xsl:if test="$fileType='c'">
 #include &lt;stdio.h&gt;
 #include &lt;string.h&gt;
@@ -60,7 +61,7 @@ typedef struct <xsl:value-of select="@name"/>
 </xsl:if>
 
 <xsl:if test="$fileType='c'">
-<xsl:if test="@name!='BlastOutput' and @name!='Iteration'">static</xsl:if> <xsl:value-of select="@name"/>Ptr parse<xsl:value-of select="@name"/>(xmlTextReaderPtr reader)
+<xsl:if test="@name!='BlastOutput' and @name!='Iteration'">static<xsl:text> </xsl:text></xsl:if><xsl:value-of select="@name"/>Ptr parse<xsl:value-of select="@name"/>(xmlTextReaderPtr reader)
 {
 	int evt = 1;
 	int end = 0;
@@ -97,7 +98,7 @@ typedef struct <xsl:value-of select="@name"/>
 	return p;
 }
 
-<xsl:if test="@name!='BlastOutput' and @name!='Iteration'">static</xsl:if> void dealloc<xsl:value-of select="@name"/>(<xsl:value-of select="@name"/>Ptr element)
+<xsl:if test="@name!='BlastOutput' and @name!='Iteration'">static<xsl:text> </xsl:text></xsl:if>void dealloc<xsl:value-of select="@name"/>(<xsl:value-of select="@name"/>Ptr element)
 {
 	<xsl:if test="@name='BlastOutput' or @name='Iteration' or @name='Hit'">void* prec = NULL;</xsl:if>
 	<xsl:for-each select="field">

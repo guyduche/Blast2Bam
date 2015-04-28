@@ -12,5 +12,3 @@ pairing of forward and reverse
 look at the casts in shortread.c
 
 chimeric alignments
-
-move the bin makefile to src

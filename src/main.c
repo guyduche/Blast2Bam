@@ -6,6 +6,7 @@
 
 int main(int argc, char** argv)
 {
-	blastToSam(int argc, char** argv);
-	return EXIT_SUCCESS;
+	int ret = 0;
+	ret = blastToSam(argc, argv);
+	return ret;
 }

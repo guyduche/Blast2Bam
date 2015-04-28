@@ -11,7 +11,7 @@ results.sam: makeSrc dbDict ${FASTQ} ${DB}
 	rm -f db.dict
 
 makeSrc:
-	(cd ../bin; ${MAKE})
+	(cd ../src; ${MAKE})
 
 dbDict: ${DB}
 	picard-tools CreateSequenceDictionary R=$< O=db.dict
@@ -23,4 +23,4 @@ clean:
 	rm -f *.sam db.dict
 	
 destroy: clean
-	(cd ../bin; ${MAKE} clean)
+	(cd ../src; ${MAKE} clean)

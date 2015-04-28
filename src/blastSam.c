@@ -11,8 +11,8 @@
 
 #define CSTRMACRO(TAG, FUNCT) { \
 		COUNTCHARMACRO(FUNCT); \
-		cigarStr[*sizeCStr-2] = count; \
-		cigarStr[*sizeCStr-1] = TAG;}
+		cigarStr[sizeCStr-2] = count; \
+		cigarStr[sizeCStr-1] = TAG;}
 		
 #define COUNTCHARMACRO(FUNCT) { \
 		count = 1; \
@@ -125,9 +125,9 @@ static void cigarStrBuilding(SamOutputPtr samOut)
 	int pos = 0;
 	int count = 0;
 	size_t sizeCStr = 0;
+	size_t queryLength = samOut->query->read_len;
 	int* cigarStr = samOut->cigar;
 	HspPtr hsp = samOut->hsp;
-	int queryLength = samOut->query->read_len;
 	
 	if (queryLength > (hsp->hsp_align_len) && (hsp->hsp_query_from) > 1)
 	{
@@ -254,7 +254,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 	else if (strcmp(hitFor->hit_def, hitRev->hit_def) == 0) // Forward and reverse strand are mapped on the same reference
 	{
 		if (rVar->hspTmp == NULL)
-			hspTmp = hitRev->hit_hsps;
+			rVar->hspTmp = hitRev->hit_hsps;
 		
 		for (i = 0; i < 2; i++)
 		{
@@ -321,6 +321,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 	}
 	
 	return itSam;
+}
 
 // NOTE: for the flag, to substract you can use flag &= ~0x100
 
@@ -329,8 +330,6 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
 	IterationSamPtr itSam = NULL;
 	IterationPtr itFor = NULL;
 	IterationPtr itRev = NULL;
-	ShortReadPtr seqFor = NULL;
-	ShortReadPtr seqRev = NULL;
 	RVarPtr rVar = (RVarPtr) safeCalloc(1, sizeof(RVar));
 	
 	if (fp2 != NULL || inter) // Paired end
@@ -405,7 +404,7 @@ static void printSam(IterationSamPtr itSam)
 				{
 					fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", rSam->samOut[k]->query->name, rSam->samOut[k]->flag, rSam->samOut[k]->rname, rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->hsp->hsp_score);
 					for (l = 0; l < rSam->samOut[k]->sizeCStr; l++)
-						fprintf(stdout,(l % 2 == 0 ? "%d":"%c"), samOut->cigar[l]);
+						fprintf(stdout,(l % 2 == 0 ? "%d":"%c"), rSam->samOut[k]->cigar[l]);
 					fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", rnext, pnext, rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
 				}
 			}
@@ -435,7 +434,7 @@ static void deallocItSam(IterationSamPtr itSam)
 	free(itSam);
 }
 
-void blastToSam(int argc, char** argv)
+int blastToSam(int argc, char** argv)
 {
 	xmlTextReaderPtr reader;
 	BlastOutputPtr blastOP = NULL;
@@ -450,14 +449,14 @@ void blastToSam(int argc, char** argv)
 	evt = safeXmlTextReaderRead(reader);
 
 	if (xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "BlastOutput"))
-		ERROR("The document is not a Blast output\n", EXIT_FAILURE)
+		ERROR("The document is not a Blast output\n", 1)
 
 	evt = safeXmlTextReaderRead(reader);
 
 	blastOP = parseBlastOutput(reader);
 
-	if (parseDict(argv[2]))
-		ERROR("Error while reading the index base", EXIT_FAILURE)
+	if (parseDict(argv[2]) == 1)
+		ERROR("Error while reading the index base", 1)
 
 	fp = safeGzOpen(argv[3], "r");
 	
@@ -480,6 +479,7 @@ void blastToSam(int argc, char** argv)
 	xmlFreeTextReader(reader);
 	xmlCleanupCharEncodingHandlers();
 	xmlDictCleanup();
+	return 0;
 }
 
 

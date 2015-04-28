@@ -2,8 +2,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <zlib.h>
-#include <libxml/xmlreader.h>
 #include "utils.h"
 
 void* _safeMalloc(const char* file, int line, size_t n)

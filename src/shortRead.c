@@ -1,20 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <zlib.h>
 #include "utils.h"
 #include "shortRead.h"
 
-
-typedef struct ShortRead
-{
-	char* name;
-	char* seq;
-	char* qual;
-	size_t read_len;
-} ShortRead, *_ShortReadPtr;
-
-#define CAST(a) ((_ShortReadPtr)(a))
 
 static char* gzReadLine(gzFile in, size_t* line_len)
 {
@@ -41,9 +30,9 @@ static char* gzReadLine(gzFile in, size_t* line_len)
 void shortReadFree(ShortReadPtr ptr)
 {
 	if (ptr == NULL) return;
-	free(CAST(ptr)->name - 1);
-	free(CAST(ptr)->seq);
-	free(CAST(ptr)->qual);
+	free(ptr->name - 1);
+	free(ptr->seq);
+	free(ptr->qual);
 	free(ptr);
 }
 
