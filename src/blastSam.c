@@ -173,10 +173,19 @@ static void cigarStrBuilding(SamOutputPtr samOut)
 static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, RVarPtr rVar)
 {	
 	int i = 0;
-	size_t countHit = itSam->countHit;
+	size_t countHit;
 	size_t countRec;
 	RecordSamPtr rSam;
 	
+	if (itSam == NULL)
+	{
+		itSam = (IterationSamPtr) safeCalloc(1, sizeof(IterationSam));
+		itSam->countHit++;
+		itSam->samHits = (SamHitPtr*) safeMalloc(sizeof(SamHitPtr));
+		itSam->samHits[0] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
+	}
+	
+	countHit = itSam->countHit;
 	itSam->samHits[countHit-1]->countRec++;
 	countRec = itSam->samHits[countHit-1]->countRec;
 	
@@ -245,6 +254,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 		{
 			itSam->countHit++;
 			itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
+			itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
 			itSam->samHits[itSam->countHit-1]->countRec = 0;
 		}
 		
@@ -282,6 +292,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 	{
 		itSam->countHit++;
 		itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
+		itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
 		itSam->samHits[itSam->countHit-1]->countRec = 0;
 		if (hitRev == NULL)
 		{
@@ -314,6 +325,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 			{
 				itSam->countHit++;
 				itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
+				itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
 				itSam->samHits[itSam->countHit-1]->countRec = 0;
 			}
 			return hitRecord(hitFor, hitRev->next, itSam, rVar);
@@ -441,7 +453,7 @@ int blastToSam(int argc, char** argv)
 	gzFile fp = NULL;
 	gzFile fp2 = NULL;
 	int evt = 1;
-	int inter = 1; // TODO: Put it in option -> get_longopt/getopt (look at Jennifer's code)
+	int inter = 0; // TODO: Put it in option -> get_longopt/getopt (look at Jennifer's code)
 	IterationSamPtr itSam = NULL;
 	
 	reader = safeXmlNewTextReaderFilename(argv[1]);
@@ -466,8 +478,11 @@ int blastToSam(int argc, char** argv)
 	while (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "Iteration"))
 	{
 		itSam = iterationRecord(reader, fp, fp2, inter);
-		printSam(itSam);
-		deallocItSam(itSam);
+		if (itSam != NULL)
+		{
+			printSam(itSam);
+			deallocItSam(itSam);
+		}
 	}
 	
 	gzclose(fp);
