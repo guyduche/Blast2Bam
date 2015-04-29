@@ -29,7 +29,6 @@ typedef struct SamOutput
 {
 	ShortReadPtr query;
 	HspPtr hsp;
-	int flag;
 	char* rname;
 	int* cigar;
 	size_t sizeCStr;
@@ -193,11 +192,8 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 	itSam->samHits[countHit-1]->rsSam[countRec-1] = (RecordSamPtr) safeCalloc(1, sizeof(RecordSam)); // Create a new record
 	rSam = itSam->samHits[countHit-1]->rsSam[countRec-1];
 	
-	if (!rVar->end)
-	{
-		rSam->samOut[0] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the forward strand
-		rSam->samOut[0]->query = rVar->reads[0];
-	}
+	rSam->samOut[0] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the forward strand
+	rSam->samOut[0]->query = rVar->reads[0];
 	
 	if (hitRev != NULL)
 	{
@@ -205,23 +201,26 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 		rSam->samOut[1]->query = rVar->reads[1];
 	}
 	
-	if (hitRev == NULL) // Single end or the forward strand is mapped on a reference where the reverse strand is not
+	if (hitFor->hit_def == NULL)
+	{
+		rVar->end = 1;
+		rVar->tmpHitNb = countHit;
+	}
+	
+	if (hitRev == NULL || hitRev->hit_def == NULL) // Single end or the forward strand is mapped on a reference where the reverse strand is not
 	{	
 		if (hitFor->hit_hsps == NULL) // Not mapped
-		{
-			rSam->samOut[0]->flag |= 0x4;
 			rSam->score = 0.0;
-		}
+
 		else
 		{
-			// TODO: flag
 			rSam->samOut[0]->rname = shortRefName(hitFor->hit_def);
 			rSam->samOut[0]->hsp = hitFor->hit_hsps;
 			cigarStrBuilding(rSam->samOut[0]);
 			rSam->score = (double) hitFor->hit_hsps->hsp_score;
 			hitFor->hit_hsps = hitFor->hit_hsps->next;
 			if (hitFor->hit_hsps != NULL)
-				return hitRecord(hitFor, NULL, itSam, rVar); // Record the other HSPs if there are any
+				return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HSPs if there are any
 		}
 	}
 	
@@ -229,7 +228,6 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 	{
 		if (rVar->tmpHitNb == countHit)
 		{
-			// TODO: flag
 			rSam->samOut[1]->rname = shortRefName(hitRev->hit_def);
 			rSam->samOut[1]->hsp = hitRev->hit_hsps;
 			cigarStrBuilding(rSam->samOut[1]);
@@ -238,15 +236,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 			if (hitRev->hit_hsps != NULL)
 				return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HSPs if there are any
 		}
-	}
-	
-	else if (hitFor->hit_def == NULL && hitRev->hit_def == NULL) // Both unmapped
-	{	
-		for (i = 0; i < 2; i++)
-			rSam->samOut[i]->flag |= 0x4;
-		
-		rSam->score = 0.0;
-	}
+	}	
 	
 	else if (strcmp(hitFor->hit_def, hitRev->hit_def))
 	{
@@ -262,17 +252,17 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 	}
 	
 	else if (strcmp(hitFor->hit_def, hitRev->hit_def) == 0) // Forward and reverse strand are mapped on the same reference
-	{
+	{	
 		if (rVar->hspTmp == NULL)
 			rVar->hspTmp = hitRev->hit_hsps;
 		
 		for (i = 0; i < 2; i++)
 		{
 			rSam->samOut[i]->hsp = (!i ? hitFor->hit_hsps : hitRev->hit_hsps);
-			rSam->samOut[i]->rname = (!i ? hitFor->hit_def : hitRev->hit_def);
+			rSam->samOut[i]->rname = shortRefName((!i ? hitFor->hit_def : hitRev->hit_def));
 			cigarStrBuilding(rSam->samOut[i]);
 		}
-		// TODO: flag and score
+		// TODO: score
 		hitRev->hit_hsps = hitRev->hit_hsps->next;
 		if (hitRev->hit_hsps != NULL)
 			return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HitRev HSPs if there are any
@@ -337,6 +327,99 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 
 // NOTE: for the flag, to substract you can use flag &= ~0x100
 
+// Paired end
+#define SAM_PAIRED 0x1
+// Read mapped in a proper pair
+#define SAM_PROPER_PAIR 0x2
+// Read unmapped
+#define SAM_UNMAP 0x4
+// Mate unmapped
+#define SAM_MUNMAP 0x8
+// Read mapped to the reverse strand
+#define SAM_REVERSE 0x10
+// Mate mapped to the reverse strand
+#define SAM_MREVERSE 0x20
+// Read is first in pair
+#define SAM_READF 0x40
+// Read is last in pair
+#define SAM_READR 0x80
+// Not primary alignment
+#define SAM_SECONDARY 0x100
+// Failed control quality
+#define SAM_QCFAIL 0x200
+// Optical or PCR duplicate
+#define SAM_DUP 0x400
+// Supplementary alignment
+#define SAM_SUPPLEMENTARY 0x800
+
+static void printSam(IterationSamPtr itSam)
+{
+	int i = 0;
+	int j = 0;
+	int k = 0;
+	int invk = 0;
+	size_t l = 0;
+	RecordSamPtr rSam;
+	unsigned int flag = 0;
+	char* rnext = NULL;
+	int pnext = 0;
+	int tlen = 0;
+	
+	for (i = 0; i < itSam->countHit; i++)
+	{
+		for (j = 0; j < itSam->samHits[i]->countRec; j++)
+		{
+			for (k = 0; k < 2; k++)
+			{
+				invk = (k ? 0 : 1);
+				rSam = itSam->samHits[i]->rsSam[j];
+				if (rSam->samOut[k] == NULL) continue; // Used if single end
+				
+				if (rSam->samOut[invk] != NULL) // Paired end
+				{
+					flag |= SAM_PAIRED;
+					flag |= (!k ? SAM_READF : SAM_READR);
+					if (rSam->samOut[invk]->rname != NULL)
+					{
+						flag |= (rSam->samOut[invk]->hsp->hsp_hit_to - rSam->samOut[invk]->hsp->hsp_hit_from < 0 ? SAM_MREVERSE : 0);
+						if (rSam->samOut[k]->rname != NULL && !strcmp(rSam->samOut[k]->rname, rSam->samOut[invk]->rname))
+							rnext = "=";
+						else
+							rnext = rSam->samOut[invk]->rname;
+						pnext = rSam->samOut[invk]->hsp->hsp_hit_from;
+					}
+					else
+					{
+						flag |= SAM_MUNMAP;
+						rnext = "*";
+						pnext = 0;
+					}
+				}
+				else // Single end
+				{
+					rnext = "*";
+					pnext = 0;
+				}
+					
+				if (rSam->samOut[k]->hsp == NULL)
+				{
+					flag |= SAM_UNMAP;
+					fprintf(stdout, "%s\t%d\t*\t0\t0\t*\t%s\t%d\t0\t%s\t%s\n", rSam->samOut[k]->query->name, flag, rnext, pnext, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
+				}
+				else
+				{
+					tlen = rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from;
+					flag |= (tlen < 0 ? SAM_REVERSE : 0);
+					fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", rSam->samOut[k]->query->name, flag, rSam->samOut[k]->rname, rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->hsp->hsp_score);
+					for (l = 0; l < rSam->samOut[k]->sizeCStr; l++)
+						fprintf(stdout,(l % 2 == 0 ? "%d":"%c"), rSam->samOut[k]->cigar[l]);
+					fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", rnext, pnext, tlen, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
+				}
+			}
+		}
+	}
+}
+
 static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFile fp2, int inter)
 {
 	IterationSamPtr itSam = NULL;
@@ -357,6 +440,7 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
 			rVar->reads[1] = shortReadNext(fp2);
 			
 		itSam = hitRecord(itFor->iteration_hits, itRev->iteration_hits, itSam, rVar);
+		printSam(itSam);
 
 		deallocIteration(itFor);
 		deallocIteration(itRev);
@@ -369,6 +453,7 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
 		itFor = parseIteration(reader);
 		rVar->reads[0] = shortReadNext(fp);
 		itSam = hitRecord(itFor->iteration_hits, NULL, itSam, rVar);
+		printSam(itSam);
 		deallocIteration(itFor);
 		shortReadFree(rVar->reads[0]);
 	}
@@ -378,51 +463,6 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
 	return itSam;
 }
 
-static void printSam(IterationSamPtr itSam)
-{
-	int i = 0;
-	int j = 0;
-	int k = 0;
-	int invk = 0;
-	size_t l = 0;
-	RecordSamPtr rSam;
-	char* rnext = NULL;
-	int pnext = 0;
-	
-	for (i = 0; i < itSam->countHit; i++)
-	{
-		for (j = 0; j < itSam->samHits[i]->countRec; j++)
-		{
-			for (k = 0; k < 2; k++)
-			{
-				invk = (k ? 0 : 1);
-				rSam = itSam->samHits[i]->rsSam[j];
-				if (rSam->samOut[k] == NULL) continue;
-				
-				if (rSam->samOut[invk] != NULL)
-				{
-					rnext = (rSam->samOut[invk]->rname == NULL ? "*" : rSam->samOut[invk]->rname);
-					pnext = (rSam->samOut[invk]->hsp == NULL ? 0 : rSam->samOut[invk]->hsp->hsp_hit_from);
-				}
-				else
-				{
-					rnext = "*";
-					pnext = 0;
-				}
-					
-				if (rSam->samOut[k]->hsp == NULL)
-					fprintf(stdout, "%s\t%d\t*\t0\t0\t*\t%s\t%d\t0\t%s\t%s\n", rSam->samOut[k]->query->name, rSam->samOut[k]->flag, rnext, pnext, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
-				else
-				{
-					fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", rSam->samOut[k]->query->name, rSam->samOut[k]->flag, rSam->samOut[k]->rname, rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->hsp->hsp_score);
-					for (l = 0; l < rSam->samOut[k]->sizeCStr; l++)
-						fprintf(stdout,(l % 2 == 0 ? "%d":"%c"), rSam->samOut[k]->cigar[l]);
-					fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", rnext, pnext, rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
-				}
-			}
-		}
-	}
-}
 
 static void deallocItSam(IterationSamPtr itSam)
 {
@@ -436,8 +476,12 @@ static void deallocItSam(IterationSamPtr itSam)
 		{
 			for (k = 0; k < 2; k++)
 			{
-				free(itSam->samHits[i]->rsSam[j]->samOut[k]->cigar);
-				free(itSam->samHits[i]->rsSam[j]->samOut[k]);
+				if (itSam->samHits[i]->rsSam[j]->samOut[k] != NULL)
+				{
+					if (itSam->samHits[i]->rsSam[j]->samOut[k]->cigar != NULL)
+						free(itSam->samHits[i]->rsSam[j]->samOut[k]->cigar);
+					free(itSam->samHits[i]->rsSam[j]->samOut[k]);
+				}
 			}
 			free(itSam->samHits[i]->rsSam[j]);
 		}
@@ -452,18 +496,17 @@ int blastToSam(int argc, char** argv)
 	BlastOutputPtr blastOP = NULL;
 	gzFile fp = NULL;
 	gzFile fp2 = NULL;
-	int evt = 1;
-	int inter = 0; // TODO: Put it in option -> get_longopt/getopt (look at Jennifer's code)
+	int inter = 1; // TODO: Put it in option -> get_longopt/getopt (look at Jennifer's code)
 	IterationSamPtr itSam = NULL;
 	
 	reader = safeXmlNewTextReaderFilename(argv[1]);
 	
-	evt = safeXmlTextReaderRead(reader);
+	safeXmlTextReaderRead(reader);
 
 	if (xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "BlastOutput"))
 		ERROR("The document is not a Blast output\n", 1)
 
-	evt = safeXmlTextReaderRead(reader);
+	safeXmlTextReaderRead(reader);
 
 	blastOP = parseBlastOutput(reader);
 
@@ -479,10 +522,7 @@ int blastToSam(int argc, char** argv)
 	{
 		itSam = iterationRecord(reader, fp, fp2, inter);
 		if (itSam != NULL)
-		{
-			printSam(itSam);
 			deallocItSam(itSam);
-		}
 	}
 	
 	gzclose(fp);
@@ -496,186 +536,5 @@ int blastToSam(int argc, char** argv)
 	xmlDictCleanup();
 	return 0;
 }
-
-
-/*
-int printSAM(IterationPtr itFor, IterationPtr itRev, ShortReadPtr seqFor, ShortReadPtr seqRev)
-{
-	HitPtr hitCur = NULL;
-	HspPtr hspFor = NULL;
-	HspPtr hspRev = NULL;
-	HspPtr hspBest = NULL;
-	int posBestHsp = 0;
-	SamOutputPtr samOutFor = NULL;
-	SamOutputPtr samOutRev = NULL;
-	int nbHSP = 0;
-	int i = 0;
-	
-	samOutFor->qname = itFor->iteration_query_def;
-	
-	if (itRev == NULL && seqRev == NULL) // Single end
-	{
-		if (strcmp(seqFor->name, itFor->iteration_query_def))
-			ERROR("Mismatch between fastq and blast output", 1)
-		
-		samOutFor->rnext = "*";
-		samOutFor->pnext = 0;
-		
-		hitCur = itFor->iteration_hits;
-		
-		while (hitCur != NULL)
-		{
-			
-			hspFor = hitCur->hit_hsps;
-			hspCur = hspFor;
-			
-			if (hspFor == NULL)
-				// samout specific for no hsp
-			
-			while (hspFor != NULL)
-			{
-				// allocation of samout relative to hsp
-				nbHsp++;
-				if (hspFor->hsp_score > hspBest->hsp_score)
-				{
-					hspBest = hspFor;
-					posBestHsp = nbHsp-1;
-				}
-				
-				hspFor = hspFor->next;
-			}
-			hitCur = hitCur->next;
-		}
-
-			while (hspCur != NULL)
-			{
-				if (hspCur->hsp_score > hspFor->hsp_score) // Print the highest scoring HSP
-					hspFor = hspCur;
-				hspCur = hspCur->next;
-			}
-
-			if (cigarStrBuilding(samOut, hspFor, itFor->iteration_query_len) != 0)
-				ERROR("Error while building the cigar string", 1)
-			
-			if (i = 0)
-			{
-				samOutFor->flag = 1;
-				samOutFor->seq = seqFor->seq;
-				samOutFor->qual = seqFor->qual;
-			}
-			
-			else
-			{
-				samOutFor->flag = 2;
-				samOutFor->seq = "*";
-				samOutFor->qual = "*";
-			}
-				
-			
-			printRead(itFor->iteration_query_def, flag, shortRefName(itFor->iteration_hits->hit_def), hspFor->hsp_hit_from, hspFor->hsp_score, cigar, sizeCStr, "*", 0, (hspFor->hsp_hit_to)-(hspFor->hsp_hit_from), seqFor->seq, seqFor->qual);
-			itFor->iteration_hits = itFor->iteration_hits->next;
-			i++;
-			}
-		}
-			
-		else
-			printRead(itFor->iteration_query_def, 0, "*", 0, 0, NULL, 0, "*", 0, 0, seqFor->seq, seqFor->qual);
-		
-		samOutFor->flag = 0; // TODO: Make the flag
-		
-		printRead(samOutFor);
-	}
-	
-	else // Paired end
-	{
-		if (!strcmp(seqFor->name, itFor->iteration_query_def) && !strcmp(seqRev->name, itRev->iteration_query_def))
-		{
-			samOutRev = (SamOutputPtr) calloc(1, sizeof(SamOutput); // TODO: safe calloc
-			
-			if (itFor->iteration_hits->hit_hsps == NULL && itRev->iteration_hits->hit_hsps == NULL) // Not mapped
-			{
-				printRead(itFor->iteration_query_def, 0, "*", 0, 0, NULL, 0, "*", 0, 0, seqFor->seq, seqFor->qual);
-				printRead(itRev->iteration_query_def, 0, "*", 0, 0, NULL, 0, "*", 0, 0, seqRev->seq, seqRev->qual);
-			}
-
-			else if (itRev->iteration_hits->hit_hsps == NULL) // Forward is mapped, Reverse is not
-			{
-				hspFor = itFor->iteration_hits->hit_hsps;
-				hspCur = hspFor;
-
-				while (hspCur != NULL)
-				{
-					if (hspCur->hsp_score > hspFor->hsp_score) // Print the highest scoring Forward HSP
-						hspFor = hspCur;
-					hspCur = hspCur->next;
-				}
-
-				if (cigarStrBuilding(samOut, hspFor, itFor->iteration_query_len) != 0)
-					ERROR("Error while building the cigar string", 1)
-				printRead(itFor->iteration_query_def, flag, shortRefName(itFor->iteration_hits->hit_def), hspFor->hsp_hit_from, hspFor->hsp_score, cigar, sizeCStr, "=", 0, (hspFor->hsp_hit_to)-(hspFor->hsp_hit_from), seqFor->seq, seqFor->qual);
-
-				printRead(itRev->iteration_query_def, flag, shortRefName(itFor->iteration_hits->hit_def), 0, 0, NULL, 0, "=", hspFor->hsp_hit_from, 0, seqRev->seq, seqRev->qual);
-			}
-
-			else if (itFor->iteration_hits->hit_hsps == NULL) // Reverse is mapped, Forward is not
-			{
-				hspRev = itRev->iteration_hits->hit_hsps;
-				hspCur = hspRev;
-
-				while (hspCur != NULL)
-				{
-					if (hspCur->hsp_score > hspRev->hsp_score) // Print the highest scoring Reverse HSP
-						hspRev = hspCur;
-					hspCur = hspCur->next;
-				}
-
-				if (cigarStrBuilding(samOut, hspRev, itRev->iteration_query_len) != 0)
-					ERROR("Error while building the cigar string", 1)
-				printRead(itRev->iteration_query_def, flag, shortRefName(itRev->iteration_hits->hit_def), hspRev->hsp_hit_from, hspRev->hsp_score, cigar, sizeCStr, "=", 0, (hspRev->hsp_hit_to)-(hspRev->hsp_hit_from), seqRev->seq, seqRev->qual);
-
-				printRead(itFor->iteration_query_def, flag, shortRefName(itRev->iteration_hits->hit_def), 0, 0, NULL, 0, "=", hspRev->hsp_hit_from, 0, seqFor->seq, seqFor->qual);
-			}
-
-			else // both are mapped
-			{			
-				hspFor = itFor->iteration_hits->hit_hsps;
-				hspRev = itRev->iteration_hits->hit_hsps;
-				
-				while (hspFor != NULL)
-				{
-					hspRev = itRev->iteration_hits->hit_hsps;
-					while (hspRev != NULL)
-					{
-						if ((0 < abs(hspRev->hsp_hit_to - hspFor->hsp_hit_to)) && (abs(hspRev->hsp_hit_to - hspFor->hsp_hit_to) < 1000000)) // Find the most "compatible" Forward and Reverse HSP; TODO: Create a function to test the compatibility
-						{
-							if (cigarStrBuilding(samOut, hspFor, itFor->iteration_query_len) != 0)
-								ERROR("Error while building the cigar string", 1)
-							printRead(itFor->iteration_query_def, flag, shortRefName(itFor->iteration_hits->hit_def), hspFor->hsp_hit_from, hspFor->hsp_score, cigar, sizeCStr, "=", hspRev->hsp_hit_from, (hspFor->hsp_hit_to)-(hspFor->hsp_hit_from), seqFor->seq, seqFor->qual);
-
-							if (cigarStrBuilding(samOut, hspRev, itRev->iteration_query_len) != 0)
-								ERROR("Error while building the cigar string", 1)
-							printRead(itRev->iteration_query_def, flag, shortRefName(itRev->iteration_hits->hit_def), hspRev->hsp_hit_from, hspRev->hsp_score, cigar, sizeCStr, "=", hspFor->hsp_hit_from, (hspRev->hsp_hit_to)-(hspRev->hsp_hit_from), seqRev->seq, seqRev->qual);
-						}
-
-						hspRev = hspRev->next;
-					}
-					hspFor = hspFor->next;
-				}
-			}
-		}
-		printRead(samOutFor);
-		printRead(samOutRev);
-		
-		if (samOutRev->cigar != NULL)
-		free(samOutRev->cigar);
-	free(samOutRev);
-	}
-	
-	if (samOutFor->cigar != NULL)
-		free(samOutFor->cigar);
-	free(samOutFor);
-	return 0;
-}
-*/
 
 

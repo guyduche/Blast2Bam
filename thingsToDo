@@ -9,6 +9,6 @@ option for interleaved
 
 pairing of forward and reverse
 
-look at the casts in shortread.c
-
 chimeric alignments
+
+sort the results by score
