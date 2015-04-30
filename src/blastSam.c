@@ -66,8 +66,8 @@ static int parseDict(char* filename)
 	FILE* reader;
 	char* str = NULL;
 	int c;
-	size_t lenStr = 0;
 	int countSpace = 0;
+	size_t lenStr = 0;
 	
 	reader = safeFOpen(filename, "r");
 
@@ -114,7 +114,7 @@ static int parseDict(char* filename)
 static char* shortRefName(char* name)
 {
 	char* p = strpbrk(name," \t"); 
-	if(p != 0)
+	if (p != 0)
 		*p = 0;
 	return name;
 }
@@ -123,9 +123,9 @@ static void cigarStrBuilding(SamOutputPtr samOut)
 {
 	int pos = 0;
 	int count = 0;
+	int* cigarStr = samOut->cigar;
 	size_t sizeCStr = 0;
 	size_t queryLength = samOut->query->read_len;
-	int* cigarStr = samOut->cigar;
 	HspPtr hsp = samOut->hsp;
 	
 	if (queryLength > (hsp->hsp_align_len) && (hsp->hsp_query_from) > 1)
@@ -185,12 +185,10 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 	}
 	
 	countHit = itSam->countHit;
-	itSam->samHits[countHit-1]->countRec++;
-	countRec = itSam->samHits[countHit-1]->countRec;
+	countRec = ++(itSam->samHits[countHit-1]->countRec);
 	
 	itSam->samHits[countHit-1]->rsSam = (RecordSamPtr*) safeRealloc(itSam->samHits[countHit-1]->rsSam, countRec * sizeof(RecordSamPtr)); // Create and/or append a given Hit record table
-	itSam->samHits[countHit-1]->rsSam[countRec-1] = (RecordSamPtr) safeCalloc(1, sizeof(RecordSam)); // Create a new record
-	rSam = itSam->samHits[countHit-1]->rsSam[countRec-1];
+	rSam = itSam->samHits[countHit-1]->rsSam[countRec-1] = (RecordSamPtr) safeCalloc(1, sizeof(RecordSam)); // Create a new record
 	
 	rSam->samOut[0] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the forward strand
 	rSam->samOut[0]->query = rVar->reads[0];
@@ -217,7 +215,8 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 			rSam->samOut[0]->rname = shortRefName(hitFor->hit_def);
 			rSam->samOut[0]->hsp = hitFor->hit_hsps;
 			cigarStrBuilding(rSam->samOut[0]);
-			rSam->score = (double) hitFor->hit_hsps->hsp_score;
+			if (hitRev == NULL)
+				rSam->score = (double) hitFor->hit_hsps->hsp_score;
 			hitFor->hit_hsps = hitFor->hit_hsps->next;
 			if (hitFor->hit_hsps != NULL)
 				return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HSPs if there are any
@@ -231,7 +230,6 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 			rSam->samOut[1]->rname = shortRefName(hitRev->hit_def);
 			rSam->samOut[1]->hsp = hitRev->hit_hsps;
 			cigarStrBuilding(rSam->samOut[1]);
-			rSam->score = hitRev->hit_hsps->hsp_score;
 			hitRev->hit_hsps = hitRev->hit_hsps->next;
 			if (hitRev->hit_hsps != NULL)
 				return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HSPs if there are any
@@ -245,7 +243,6 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 			itSam->countHit++;
 			itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
 			itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
-			itSam->samHits[itSam->countHit-1]->countRec = 0;
 		}
 		
 		return hitRecord(hitFor, hitRev->next, itSam, rVar);
@@ -283,7 +280,6 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 		itSam->countHit++;
 		itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
 		itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
-		itSam->samHits[itSam->countHit-1]->countRec = 0;
 		if (hitRev == NULL)
 		{
 			if (rVar->hitTmp == NULL)
@@ -316,7 +312,6 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 				itSam->countHit++;
 				itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
 				itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
-				itSam->samHits[itSam->countHit-1]->countRec = 0;
 			}
 			return hitRecord(hitFor, hitRev->next, itSam, rVar);
 		}
@@ -327,30 +322,18 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 
 // NOTE: for the flag, to substract you can use flag &= ~0x100
 
-// Paired end
-#define SAM_PAIRED 0x1
-// Read mapped in a proper pair
-#define SAM_PROPER_PAIR 0x2
-// Read unmapped
-#define SAM_UNMAP 0x4
-// Mate unmapped
-#define SAM_MUNMAP 0x8
-// Read mapped to the reverse strand
-#define SAM_REVERSE 0x10
-// Mate mapped to the reverse strand
-#define SAM_MREVERSE 0x20
-// Read is first in pair
-#define SAM_READF 0x40
-// Read is last in pair
-#define SAM_READR 0x80
-// Not primary alignment
-#define SAM_SECONDARY 0x100
-// Failed control quality
-#define SAM_QCFAIL 0x200
-// Optical or PCR duplicate
-#define SAM_DUP 0x400
-// Supplementary alignment
-#define SAM_SUPPLEMENTARY 0x800
+#define SAM_PAIRED 0x1 // Paired end
+#define SAM_PROPER_PAIR 0x2 // Read mapped in a proper pair
+#define SAM_UNMAP 0x4 // Read unmapped
+#define SAM_MUNMAP 0x8 // Mate unmapped
+#define SAM_REVERSE 0x10 // Read mapped to the reverse strand
+#define SAM_MREVERSE 0x20 // Mate mapped to the reverse strand
+#define SAM_READF 0x40 // Read is first in pair
+#define SAM_READR 0x80 // Read is last in pair
+#define SAM_SECONDARY 0x100 // Not primary alignment
+#define SAM_QCFAIL 0x200 // Failed control quality
+#define SAM_DUP 0x400 // Optical or PCR duplicate
+#define SAM_SUPPLEMENTARY 0x800 // Supplementary alignment
 
 static void printSam(IterationSamPtr itSam)
 {
@@ -358,12 +341,12 @@ static void printSam(IterationSamPtr itSam)
 	int j = 0;
 	int k = 0;
 	int invk = 0;
-	size_t l = 0;
-	RecordSamPtr rSam;
-	unsigned int flag = 0;
-	char* rnext = NULL;
 	int pnext = 0;
 	int tlen = 0;
+	unsigned int flag = 0;
+	size_t l = 0;
+	char* rnext = NULL;
+	RecordSamPtr rSam;
 	
 	for (i = 0; i < itSam->countHit; i++)
 	{
@@ -371,19 +354,22 @@ static void printSam(IterationSamPtr itSam)
 		{
 			for (k = 0; k < 2; k++)
 			{
+				flag = 0;
 				invk = (k ? 0 : 1);
 				rSam = itSam->samHits[i]->rsSam[j];
 				if (rSam->samOut[k] == NULL) continue; // Used if single end
 				
 				if (rSam->samOut[invk] != NULL) // Paired end
 				{
-					flag |= SAM_PAIRED;
-					flag |= (!k ? SAM_READF : SAM_READR);
+					flag |= SAM_PAIRED | (!k ? SAM_READF : SAM_READR);
 					if (rSam->samOut[invk]->rname != NULL)
 					{
 						flag |= (rSam->samOut[invk]->hsp->hsp_hit_to - rSam->samOut[invk]->hsp->hsp_hit_from < 0 ? SAM_MREVERSE : 0);
 						if (rSam->samOut[k]->rname != NULL && !strcmp(rSam->samOut[k]->rname, rSam->samOut[invk]->rname))
+						{
 							rnext = "=";
+							flag |= SAM_PROPER_PAIR;
+						}
 						else
 							rnext = rSam->samOut[invk]->rname;
 						pnext = rSam->samOut[invk]->hsp->hsp_hit_from;
@@ -404,13 +390,13 @@ static void printSam(IterationSamPtr itSam)
 				if (rSam->samOut[k]->hsp == NULL)
 				{
 					flag |= SAM_UNMAP;
-					fprintf(stdout, "%s\t%d\t*\t0\t0\t*\t%s\t%d\t0\t%s\t%s\n", rSam->samOut[k]->query->name, flag, rnext, pnext, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
+					fprintf(stdout, "%s\t%d\t*\t0\t%0.2f\t*\t%s\t%d\t0\t%s\t%s\n", rSam->samOut[k]->query->name, flag, rSam->score, rnext, pnext, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
 				}
 				else
 				{
 					tlen = rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from;
 					flag |= (tlen < 0 ? SAM_REVERSE : 0);
-					fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", rSam->samOut[k]->query->name, flag, rSam->samOut[k]->rname, rSam->samOut[k]->hsp->hsp_hit_from, rSam->samOut[k]->hsp->hsp_score);
+					fprintf(stdout, "%s\t%d\t%s\t%d\t%0.2f\t", rSam->samOut[k]->query->name, flag, rSam->samOut[k]->rname, rSam->samOut[k]->hsp->hsp_hit_from, rSam->score);
 					for (l = 0; l < rSam->samOut[k]->sizeCStr; l++)
 						fprintf(stdout,(l % 2 == 0 ? "%d":"%c"), rSam->samOut[k]->cigar[l]);
 					fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", rnext, pnext, tlen, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
@@ -493,11 +479,11 @@ static void deallocItSam(IterationSamPtr itSam)
 int blastToSam(int argc, char** argv)
 {
 	xmlTextReaderPtr reader;
-	BlastOutputPtr blastOP = NULL;
 	gzFile fp = NULL;
 	gzFile fp2 = NULL;
-	int inter = 1; // TODO: Put it in option -> get_longopt/getopt (look at Jennifer's code)
+	BlastOutputPtr blastOP = NULL;
 	IterationSamPtr itSam = NULL;
+	int inter = 1; // TODO: Put it in option -> get_longopt/getopt (look at Jennifer's code)
 	
 	reader = safeXmlNewTextReaderFilename(argv[1]);
 	
