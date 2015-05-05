@@ -111,14 +111,6 @@ static int parseDict(char* filename)
 	return 0;
 }
 
-static char* shortRefName(char* name)
-{
-	char* p = strpbrk(name," \t"); 
-	if (p != 0)
-		*p = 0;
-	return name;
-}
-
 static void cigarStrBuilding(SamOutputPtr samOut)
 {
 	int pos = 0;
@@ -212,7 +204,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 
 		else
 		{
-			rSam->samOut[0]->rname = shortRefName(hitFor->hit_def);
+			rSam->samOut[0]->rname = shortName(hitFor->hit_def);
 			rSam->samOut[0]->hsp = hitFor->hit_hsps;
 			cigarStrBuilding(rSam->samOut[0]);
 			if (hitRev == NULL)
@@ -227,7 +219,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 	{
 		if (rVar->tmpHitNb == countHit)
 		{
-			rSam->samOut[1]->rname = shortRefName(hitRev->hit_def);
+			rSam->samOut[1]->rname = shortName(hitRev->hit_def);
 			rSam->samOut[1]->hsp = hitRev->hit_hsps;
 			cigarStrBuilding(rSam->samOut[1]);
 			hitRev->hit_hsps = hitRev->hit_hsps->next;
@@ -256,7 +248,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 		for (i = 0; i < 2; i++)
 		{
 			rSam->samOut[i]->hsp = (!i ? hitFor->hit_hsps : hitRev->hit_hsps);
-			rSam->samOut[i]->rname = shortRefName((!i ? hitFor->hit_def : hitRev->hit_def));
+			rSam->samOut[i]->rname = shortName((!i ? hitFor->hit_def : hitRev->hit_def));
 			cigarStrBuilding(rSam->samOut[i]);
 		}
 		// TODO: score
@@ -483,7 +475,7 @@ int blastToSam(int argc, char** argv)
 	gzFile fp2 = NULL;
 	BlastOutputPtr blastOP = NULL;
 	IterationSamPtr itSam = NULL;
-	int inter = 1; // TODO: Put it in option -> get_longopt/getopt (look at Jennifer's code)
+	int inter = 0; // TODO: Put it in option -> get_longopt/getopt (look at Jennifer's code)
 	
 	reader = safeXmlNewTextReaderFilename(argv[1]);
 	

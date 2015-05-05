@@ -1,13 +1,12 @@
 
 .PHONY: clean destroy makeSrc
 VPATH = ../bin/
-FASTQ = ${HOME}/data/Pichon/180714_rand.fq.gz
-DB = ${HOME}/data/Pichon/db/db.fasta
+FASTQ = ${HOME}/data/Ebola/SRR_1.gz ${HOME}/data/Ebola/SRR_2.gz
+DB = ${HOME}/data/Ebola/db/ebolavirus.fasta
 
-
+# Prog
 results.sam: makeSrc dbDict ${FASTQ} ${DB}
-	gunzip -c ${FASTQ} | head -n 40000 | paste - - - - | cut -f 1,2 | cut -c2- |\
-		sed 's/^/>/' | tr "\t" "\n" | blastn -db ${DB} -query - -outfmt 5 | ./../bin/prog - db.dict ${FASTQ} > $@
+	./../bin/fastqParser ${FASTQ} | blastn -db ${DB} -query - -outfmt 5 | ./../bin/prog - db.dict ${FASTQ} > $@
 	rm -f db.dict
 
 makeSrc:
@@ -16,9 +15,17 @@ makeSrc:
 dbDict: ${DB}
 	picard-tools CreateSequenceDictionary R=$< O=db.dict
 
+indexBlast: ${DB}
+	(cd ${HOME}/data/Pichon/db; makeblastdb -in ${DB} -dbtype nucl)
+
+# BWA
 resultsBWA.sam: ${FASTQ} ${DB}
-	gunzip -c ${FASTQ} | head -n 40000 | bwa mem -p ${DB} - > $@
-	
+	bwa mem ${DB} ${FASTQ} > $@
+
+indexBWA: ${DB}
+	(cd ${HOME}/data/Pichon/db; bwa index ${DB})
+
+# Clean
 clean:
 	rm -f *.sam db.dict
 	

@@ -11,8 +11,8 @@ static char* gzReadLine(gzFile in, size_t* line_len)
 	char buffer[BUFSIZ];
 	char* line = NULL;
 	
-	if (gzeof(in)) return NULL;
 	if (gzgets(in, buffer, BUFSIZ) == NULL) return NULL; // Warning verify end of string
+	if (gzeof(in)) return NULL;
 	
 	len = strlen(buffer);
 	if (len == 0 || buffer[len-1] != '\n')
@@ -41,11 +41,13 @@ ShortReadPtr shortReadNext(gzFile in)
 	size_t line_len = 0UL;
 	ShortReadPtr ptr = NULL;
 	
-	if (gzeof(in)) return NULL;
-	
 	ptr = (ShortReadPtr) safeCalloc(1, sizeof(ShortRead));
 	
-	ptr->name = gzReadLine(in, &line_len) + 1;
+	ptr->name = gzReadLine(in, &line_len);
+	if (ptr->name == NULL)
+		return NULL;
+	else
+		ptr->name = shortName(ptr->name + 1);
 	ptr->seq = gzReadLine(in, &line_len);
 	ptr->read_len = line_len;
 	free(gzReadLine(in, &line_len)); // Discard the 3rd line

@@ -29,5 +29,6 @@ gzFile _safeGzOpen(const char* file, int line, char* filename, char* mode);
 FILE* _safeFOpen(const char* file, int line, char* filename, char* mode);
 xmlTextReaderPtr _safeXmlNewTextReaderFilename(const char* file, int line, char* filename);
 int _safeXmlTextReaderRead(const char* file, int line, xmlTextReaderPtr fp);
+char* shortName(char* name);
 
 #endif // UTILS_H_INCLUDED
