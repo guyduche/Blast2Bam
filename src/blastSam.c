@@ -318,6 +318,26 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 	return itSam;
 }
 
+static char* revStr(char* oldStr)
+{
+	size_t i = 0;
+	int l = strlen(oldStr);
+	char* newStr = safeCalloc(l+1, sizeof(char));
+	
+	for (--l; l >= 0; l--, i++)
+	{
+		switch(oldStr[l])
+		{
+			case 'A': newStr[i] = 'T'; break;
+			case 'T': newStr[i] = 'A'; break;
+			case 'C': newStr[i] = 'G'; break;
+			case 'G': newStr[i] = 'C'; break;
+			default: newStr[i] = oldStr[l]; break;
+		}
+	}
+	return newStr;
+}
+
 // NOTE: for the flag, to substract you can use flag &= ~0x100
 
 #define SAM_PAIRED 0x1 // Paired end
@@ -338,12 +358,15 @@ static void printSam(IterationSamPtr itSam)
 	int i = 0;
 	int j = 0;
 	int k = 0;
+	int l = 0;
 	int invk = 0;
 	int pos[2];
 	int tlen = 0;
+	int p0 = 0;
+	int p1 = 0;
 	unsigned int flag = 0;
-	size_t l = 0;
 	char* rnext = NULL;
+	char* seq = NULL;
 	RecordSamPtr rSam;
 
 	for (i = 0; i < itSam->countHit; i++)
@@ -363,15 +386,15 @@ static void printSam(IterationSamPtr itSam)
 					if (rSam->samOut[invk]->rname != NULL)
 					{
 						flag |= (rSam->samOut[invk]->hsp->hsp_hit_to - rSam->samOut[invk]->hsp->hsp_hit_from < 0 ? SAM_MREVERSE : 0);
-						pos[invk] = rSam->samOut[invk]->hsp->hsp_hit_from;
+						pos[invk] = (flag & SAM_MREVERSE ? rSam->samOut[invk]->hsp->hsp_hit_to : rSam->samOut[invk]->hsp->hsp_hit_from);
 						if (rSam->samOut[k]->rname != NULL && !strcmp(rSam->samOut[k]->rname, rSam->samOut[invk]->rname))
 						{
 							rnext = "=";
 							flag |= SAM_PROPER_PAIR;
 							flag |= (rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from < 0 ? SAM_REVERSE : 0);
-							pos[k] = rSam->samOut[k]->hsp->hsp_hit_from;
-							
-							// TODO: tlen
+							p0 = (flag & SAM_REVERSE ? rSam->samOut[k]->hsp->hsp_hit_to + rSam->samOut[k]->hsp->hsp_align_len : rSam->samOut[k]->hsp->hsp_hit_from);
+							p1 = (flag & SAM_MREVERSE ? rSam->samOut[invk]->hsp->hsp_hit_to + rSam->samOut[invk]->hsp->hsp_align_len : rSam->samOut[invk]->hsp->hsp_hit_from);
+							tlen = p1 - p0;
 						}
 						else
 							rnext = rSam->samOut[invk]->rname;
@@ -398,11 +421,30 @@ static void printSam(IterationSamPtr itSam)
 				else
 				{
 					flag |= (rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from < 0 ? SAM_REVERSE : 0);
-					pos[k] = rSam->samOut[k]->hsp->hsp_hit_from;
+					pos[k] = (flag & SAM_REVERSE ? rSam->samOut[k]->hsp->hsp_hit_to : rSam->samOut[k]->hsp->hsp_hit_from);
 					fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", rSam->samOut[k]->query->name, flag, rSam->samOut[k]->rname, pos[k], rSam->score);
-					for (l = 0; l < rSam->samOut[k]->sizeCStr; l++)
-						fprintf(stdout,(l % 2 == 0 ? "%d":"%c"), rSam->samOut[k]->cigar[l]);
-					fprintf(stdout, "\t%s\t%d\t%d\t%s\t%s\n", rnext, pos[invk], tlen, rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
+					if (flag & SAM_REVERSE)
+					{
+						for (l = rSam->samOut[k]->sizeCStr - 2; l >= 0; l -= 2)
+							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar[l], rSam->samOut[k]->cigar[l+1]);
+						seq = revStr(rSam->samOut[k]->query->seq);
+					}
+					else
+					{
+						for (l = 0; l < (rSam->samOut[k]->sizeCStr - 1); l += 2)
+							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar[l], rSam->samOut[k]->cigar[l+1]);
+						seq = rSam->samOut[k]->query->seq;
+					}
+					fprintf(stdout, "\t%s\t%d\t%d\t%s\t", rnext, pos[invk], tlen, seq);
+					if (flag & SAM_REVERSE)
+					{
+						free(seq);
+						for (l = (strlen(rSam->samOut[k]->query->qual) - 1); l >= 0; l--)
+							fprintf(stdout, "%c", rSam->samOut[k]->query->qual[l]);
+					}
+					else
+						fprintf(stdout, "%s", rSam->samOut[k]->query->qual);
+					fprintf(stdout, "\n");
 				}
 			}
 		}
