@@ -9,29 +9,20 @@
 #include "utils.h"
 #include "shortRead.h"
 
-#define CSTRMACRO(TAG, FUNCT) { \
-		COUNTCHARMACRO(FUNCT); \
-		cigarStr[sizeCStr-2] = count; \
-		cigarStr[sizeCStr-1] = TAG;}
 
-#define COUNTCHARMACRO(FUNCT) { \
-		count = 1; \
-		pos++; \
-		while (pos < (hsp->hsp_align_len) && FUNCT) \
-		{ \
-			count++; \
-			pos++; \
-		} \
-		pos--;}
-
+typedef struct Cigar
+{
+	int* str;
+	int nbDiff;
+	size_t size; // size of the CIGAR string
+} Cigar, *CigarPtr;
 
 typedef struct SamOutput
 {
 	ShortReadPtr query; // Sequence infos
 	HspPtr hsp; // HSP infos
+	CigarPtr cigar; // CIGAR string
 	char* rname; // Ref name
-	int* cigar; // CIGAR string
-	size_t sizeCStr; // size of the CIGAR string
 } SamOutput, *SamOutputPtr;
 
 typedef struct RecordSam
@@ -113,29 +104,42 @@ static int parseDict(char* filename)
 	return 0;
 }
 
+#define CSTRMACRO(TAG, FUNCT) { \
+		COUNTCHARMACRO(FUNCT); \
+		cigar->str[cigar->size-2] = count; \
+		cigar->str[cigar->size-1] = TAG;}
+
+#define COUNTCHARMACRO(FUNCT) { \
+		count = 1; \
+		pos++; \
+		while (pos < (hsp->hsp_align_len) && FUNCT) \
+		{ \
+			count++; \
+			pos++; \
+		} \
+		pos--;}
 
 /* Build the CIGAR string of the query */
-static void cigarStrBuilding(SamOutputPtr samOut)
+static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 {
 	int pos = 0;
 	int count = 0;
-	int* cigarStr = samOut->cigar;
-	size_t sizeCStr = 0;
 	size_t queryLength = samOut->query->read_len;
 	HspPtr hsp = samOut->hsp;
+	CigarPtr cigar = (CigarPtr) safeCalloc(1, sizeof(Cigar));
 
 	if (hsp->hsp_query_from > 1) // Soft clipping at the beginning
 	{
-		sizeCStr += 2;
-		cigarStr = (int*) safeCalloc(sizeCStr, sizeof(int));
-		cigarStr[0] = hsp->hsp_query_from - 1;
-		cigarStr[1] = 'S';
+		cigar->size += 2;
+		cigar->str = (int*) safeCalloc(cigar->size, sizeof(int));
+		cigar->str[0] = hsp->hsp_query_from - 1;
+		cigar->str[1] = 'S';
 	}
 
 	for (pos = 0; pos < (hsp->hsp_align_len); pos++)
 	{
-		sizeCStr += 2;
-		cigarStr = (int*) safeRealloc(cigarStr, sizeCStr * sizeof(int));
+		cigar->size += 2;
+		cigar->str = (int*) safeRealloc(cigar->str, cigar->size * sizeof(int));
 
 		if (hsp->hsp_hseq[pos] == '-')
 			CSTRMACRO('I', (hsp->hsp_hseq[pos] == '-')) // Count the number of insertions
@@ -149,20 +153,22 @@ static void cigarStrBuilding(SamOutputPtr samOut)
 		else
 			CSTRMACRO('X', (hsp->hsp_hseq[pos] != '-' && hsp->hsp_qseq[pos] != '-' && hsp->hsp_hseq[pos] != hsp->hsp_qseq[pos])) // Count the number of mismatches
 
-		if (cigarStr[sizeCStr-2] >= 100 && cigarStr[sizeCStr-1] == 'D')
-			cigarStr[sizeCStr-1] = 'N'; // If there is more than a hundred deletion at a time, it is considered a skipped region
+		if (cigar->str[cigar->size-2] >= 100 && cigar->str[cigar->size-1] == 'D')
+			cigar->str[cigar->size-1] = 'N'; // If there is more than a hundred deletion at a time, it is considered a skipped region
+			
+		if (cigar->str[cigar->size-1] != '=')
+			cigar->nbDiff += cigar->str[cigar->size-2];
 	}
 
 	if ((queryLength - hsp->hsp_query_to) > 0) // Soft clipping at the end
 	{
-		sizeCStr += 2;
-		cigarStr = (int*) safeRealloc(cigarStr, sizeCStr * sizeof(int));
-		cigarStr[sizeCStr-2] = queryLength - hsp->hsp_query_to;
-		cigarStr[sizeCStr-1] = 'S';
+		cigar->size += 2;
+		cigar->str = (int*) safeRealloc(cigar->str, cigar->size * sizeof(int));
+		cigar->str[cigar->size-2] = queryLength - hsp->hsp_query_to;
+		cigar->str[cigar->size-1] = 'S';
 	}
 
-	samOut->sizeCStr = sizeCStr;
-	samOut->cigar = cigarStr;
+	return cigar;
 }
 
 
@@ -212,7 +218,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 		{
 			rSam->samOut[0]->rname = shortName(hitFor->hit_def);
 			rSam->samOut[0]->hsp = hitFor->hit_hsps;
-			cigarStrBuilding(rSam->samOut[0]);
+			rSam->samOut[0]->cigar = cigarStrBuilding(rSam->samOut[0]);
 			if (hitRev == NULL)
 				rSam->score = 60;
 			hitFor->hit_hsps = hitFor->hit_hsps->next;
@@ -227,7 +233,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 		{
 			rSam->samOut[1]->rname = shortName(hitRev->hit_def);
 			rSam->samOut[1]->hsp = hitRev->hit_hsps;
-			cigarStrBuilding(rSam->samOut[1]);
+			rSam->samOut[1]->cigar = cigarStrBuilding(rSam->samOut[1]);
 			hitRev->hit_hsps = hitRev->hit_hsps->next;
 			if (hitRev->hit_hsps != NULL)
 				return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HSPs if there are any
@@ -255,7 +261,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 		{
 			rSam->samOut[i]->hsp = (!i ? hitFor->hit_hsps : hitRev->hit_hsps);
 			rSam->samOut[i]->rname = shortName((!i ? hitFor->hit_def : hitRev->hit_def));
-			cigarStrBuilding(rSam->samOut[i]);
+			rSam->samOut[i]->cigar = cigarStrBuilding(rSam->samOut[i]);
 		}
 		rSam->score = 60;
 		hitRev->hit_hsps = hitRev->hit_hsps->next;
@@ -425,14 +431,14 @@ static void printSam(IterationSamPtr itSam)
 					fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", rSam->samOut[k]->query->name, flag, rSam->samOut[k]->rname, pos[k], rSam->score);
 					if (flag & SAM_REVERSE)
 					{
-						for (l = rSam->samOut[k]->sizeCStr - 2; l >= 0; l -= 2)
-							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar[l], rSam->samOut[k]->cigar[l+1]);
+						for (l = rSam->samOut[k]->cigar->size - 2; l >= 0; l -= 2)
+							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar->str[l], rSam->samOut[k]->cigar->str[l+1]);
 						seq = revStr(rSam->samOut[k]->query->seq);
 					}
 					else
 					{
-						for (l = 0; l < (rSam->samOut[k]->sizeCStr - 1); l += 2)
-							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar[l], rSam->samOut[k]->cigar[l+1]);
+						for (l = 0; l < (rSam->samOut[k]->cigar->size - 1); l += 2)
+							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar->str[l], rSam->samOut[k]->cigar->str[l+1]);
 						seq = rSam->samOut[k]->query->seq;
 					}
 					fprintf(stdout, "\t%s\t%d\t%d\t%s\t", rnext, pos[invk], tlen, seq);
@@ -444,7 +450,8 @@ static void printSam(IterationSamPtr itSam)
 					}
 					else
 						fprintf(stdout, "%s", rSam->samOut[k]->query->qual);
-					fprintf(stdout, "\n");
+						
+					fprintf(stdout, "\tNM:i:%d\n", rSam->samOut[k]->cigar->nbDiff);
 				}
 			}
 		}
@@ -510,7 +517,10 @@ static void deallocItSam(IterationSamPtr itSam)
 				if (itSam->samHits[i]->rsSam[j]->samOut[k] != NULL)
 				{
 					if (itSam->samHits[i]->rsSam[j]->samOut[k]->cigar != NULL)
+					{
+						free(itSam->samHits[i]->rsSam[j]->samOut[k]->cigar->str);
 						free(itSam->samHits[i]->rsSam[j]->samOut[k]->cigar);
+					}
 					free(itSam->samHits[i]->rsSam[j]->samOut[k]);
 				}
 			}
