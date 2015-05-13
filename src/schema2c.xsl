@@ -63,17 +63,16 @@ typedef struct <xsl:value-of select="@name"/>
 <xsl:if test="$fileType='c'">
 <xsl:if test="@name!='BlastOutput' and @name!='Iteration'">static<xsl:text> </xsl:text></xsl:if><xsl:value-of select="@name"/>Ptr parse<xsl:value-of select="@name"/>(xmlTextReaderPtr reader)
 {
-	int evt = 1;
-	int end = 0;
+	int evt = 1, end = 0;
 	<xsl:value-of select="@name"/>Ptr p = (<xsl:value-of select="@name"/>Ptr) safeCalloc(1, sizeof(<xsl:value-of select="@name"/>));
-	
+
 	evt = safeXmlTextReaderRead(reader);
 
 	if (xmlTextReaderNodeType(reader) == 15)
 		end = 1;
 	else
 		evt = safeXmlTextReaderRead(reader);
-	
+
 	while (evt == 1 &amp;&amp; !end)
 	{	
 		if (xmlTextReaderNodeType(reader) == 15)

@@ -70,28 +70,8 @@ int _safeXmlTextReaderRead(const char* file, int line, xmlTextReaderPtr fp)
 
 char* shortName(char* name)
 {
-	char* p = strpbrk(name," \t"); 
+	char* p = strpbrk(name," \t");
 	if (p != 0)
 		*p = 0;
 	return name;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

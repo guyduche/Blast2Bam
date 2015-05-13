@@ -9,10 +9,24 @@
 #include "utils.h"
 #include "shortRead.h"
 
+struct CigarOperator
+	{
+	char symbol;
+	};
+
+extern const CigarOperator EQ;
+extern const CigarOperator M;
+extern const CigarOperator D;
+
+typedef struct CigarElement
+	{
+	CigarOperator* op;
+	int size;
+	}CigarElement,*CigarElementPtr; 
 
 typedef struct Cigar
 {
-	int* str;
+	CigarElement* elements;
 	int nbDiff;
 	size_t size; // size of the CIGAR string
 } Cigar, *CigarPtr;
@@ -122,8 +136,7 @@ static int parseDict(char* filename)
 /* Build the CIGAR string of the query */
 static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 {
-	int pos = 0;
-	int count = 0;
+	int pos = 0, count = 0;
 	size_t queryLength = samOut->query->read_len;
 	HspPtr hsp = samOut->hsp;
 	CigarPtr cigar = (CigarPtr) safeCalloc(1, sizeof(Cigar));
@@ -155,7 +168,7 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 
 		if (cigar->str[cigar->size-2] >= 100 && cigar->str[cigar->size-1] == 'D')
 			cigar->str[cigar->size-1] = 'N'; // If there is more than a hundred deletion at a time, it is considered a skipped region
-			
+
 		if (cigar->str[cigar->size-1] != '=')
 			cigar->nbDiff += cigar->str[cigar->size-2];
 	}
@@ -176,8 +189,7 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, RVarPtr rVar)
 {
 	int i = 0;
-	size_t countHit;
-	size_t countRec;
+	size_t countHit, countRec;
 	RecordSamPtr rSam;
 
 	if (itSam == NULL) // Create the main structure on the first call
@@ -329,7 +341,7 @@ static char* revStr(char* oldStr)
 	size_t i = 0;
 	int l = strlen(oldStr);
 	char* newStr = safeCalloc(l+1, sizeof(char));
-	
+
 	for (--l; l >= 0; l--, i++)
 	{
 		switch(oldStr[l])
@@ -346,30 +358,24 @@ static char* revStr(char* oldStr)
 
 // NOTE: for the flag, to substract you can use flag &= ~0x100
 
-#define SAM_PAIRED 0x1 // Paired end
-#define SAM_PROPER_PAIR 0x2 // Read mapped in a proper pair
-#define SAM_UNMAP 0x4 // Read unmapped
-#define SAM_MUNMAP 0x8 // Mate unmapped
-#define SAM_REVERSE 0x10 // Read mapped to the reverse strand
-#define SAM_MREVERSE 0x20 // Mate mapped to the reverse strand
-#define SAM_READF 0x40 // Read is first in pair
-#define SAM_READR 0x80 // Read is last in pair
-#define SAM_SECONDARY 0x100 // Not primary alignment
-#define SAM_QCFAIL 0x200 // Failed control quality
-#define SAM_DUP 0x400 // Optical or PCR duplicate
-#define SAM_SUPPLEMENTARY 0x800 // Supplementary alignment
+#define SAM_PAIRED 0x1			// Paired end
+#define SAM_PROPER_PAIR 0x2		// Read mapped in a proper pair
+#define SAM_UNMAP 0x4			// Read unmapped
+#define SAM_MUNMAP 0x8			// Mate unmapped
+#define SAM_REVERSE 0x10		// Read mapped on the reverse strand
+#define SAM_MREVERSE 0x20		// Mate mapped on the reverse strand
+#define SAM_READF 0x40			// Read is first in pair
+#define SAM_READR 0x80			// Read is last in pair
+#define SAM_SECONDARY 0x100		// Not primary alignment
+#define SAM_QCFAIL 0x200		// Failed control quality
+#define SAM_DUP 0x400			// Optical or PCR duplicate
+#define SAM_SUPPLEMENTARY 0x800	// Supplementary alignment
 
 static void printSam(IterationSamPtr itSam)
 {
-	int i = 0;
-	int j = 0;
-	int k = 0;
-	int l = 0;
-	int invk = 0;
+	int i = 0, j = 0, k = 0, l = 0;
+	int invk = 0, tlen = 0, p0 = 0, p1 = 0;
 	int pos[2];
-	int tlen = 0;
-	int p0 = 0;
-	int p1 = 0;
 	unsigned int flag = 0;
 	char* rnext = NULL;
 	char* seq = NULL;
@@ -404,7 +410,7 @@ static void printSam(IterationSamPtr itSam)
 						}
 						else
 							rnext = rSam->samOut[invk]->rname;
-						
+
 					}
 					else
 					{
@@ -450,7 +456,7 @@ static void printSam(IterationSamPtr itSam)
 					}
 					else
 						fprintf(stdout, "%s", rSam->samOut[k]->query->qual);
-						
+
 					fprintf(stdout, "\tNM:i:%d\n", rSam->samOut[k]->cigar->nbDiff);
 				}
 			}
@@ -504,9 +510,7 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
 
 static void deallocItSam(IterationSamPtr itSam)
 {
-	int i = 0;
-	int j = 0;
-	int k = 0;
+	int i = 0, j = 0, k = 0;
 
 	for (i = 0; i < itSam->countHit; i++)
 	{

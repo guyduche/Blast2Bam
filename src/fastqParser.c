@@ -12,12 +12,12 @@ int main(int argc, char** argv)
 	gzFile fp2 = NULL;
 	ShortReadPtr reads[2];
 	int inter = 0; // TODO: Put it in option -> get_longopt/getopt (look at Jennifer's code)
-	
+
 	fp = safeGzOpen(argv[1], "r");
-	
-	if (argc == 3 && !inter)	
+
+	if (argc == 3 && !inter)
 		fp2 = safeGzOpen(argv[2], "r");
-	
+
 	reads[0] = shortReadNext(fp);
 	while (reads[0] != NULL)
 	{
@@ -28,7 +28,7 @@ int main(int argc, char** argv)
 			else
 				reads[1] = shortReadNext(fp2);
 		}
-		
+
 		fprintf(stdout, ">%s\n%s\n", reads[0]->name, reads[0]->seq);
 		if (fp2 != NULL)
 		{
@@ -38,10 +38,10 @@ int main(int argc, char** argv)
 		shortReadFree(reads[0]);
 		reads[0] = shortReadNext(fp);
 	}
-		
+
 	gzclose(fp);
 	if (fp2 != NULL)
 		gzclose(fp2);
-	
+
 	return 0;
 }
