@@ -14,26 +14,3 @@ chimeric alignments
 sort the results by score
 
 metadata
-
-change the cigarStr :
-struct CigarOperator
-	{
-	char symbol;
-	};
-
-static const CigarOperator EQ = {'='};
-extern const CigarOperator M;
-extern const CigarOperator D;
-
-typedef struct CigarElement
-	{
-	CigarOperator* op;
-	int size;
-	}CigarElement,*CigarElementPtr; 
-
-typedef struct Cigar
-{
-	CigarElement* elements;
-	int nbDiff;
-	size_t size; // size of the CIGAR string
-} Cigar, *CigarPtr;

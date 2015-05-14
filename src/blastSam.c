@@ -9,24 +9,15 @@
 #include "utils.h"
 #include "shortRead.h"
 
-struct CigarOperator
-	{
-	char symbol;
-	};
-
-extern const CigarOperator EQ;
-extern const CigarOperator M;
-extern const CigarOperator D;
-
 typedef struct CigarElement
-	{
-	CigarOperator* op;
-	int size;
-	}CigarElement,*CigarElementPtr; 
+{
+	int count;
+	char symbol;
+} CigarElement,*CigarElementPtr;
 
 typedef struct Cigar
 {
-	CigarElement* elements;
+	CigarElementPtr* elements;
 	int nbDiff;
 	size_t size; // size of the CIGAR string
 } Cigar, *CigarPtr;
@@ -120,8 +111,8 @@ static int parseDict(char* filename)
 
 #define CSTRMACRO(TAG, FUNCT) { \
 		COUNTCHARMACRO(FUNCT); \
-		cigar->str[cigar->size-2] = count; \
-		cigar->str[cigar->size-1] = TAG;}
+		cigar->elements[cigar->size-1]->count = count; \
+		cigar->elements[cigar->size-1]->symbol = TAG;}
 
 #define COUNTCHARMACRO(FUNCT) { \
 		count = 1; \
@@ -143,16 +134,18 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 
 	if (hsp->hsp_query_from > 1) // Soft clipping at the beginning
 	{
-		cigar->size += 2;
-		cigar->str = (int*) safeCalloc(cigar->size, sizeof(int));
-		cigar->str[0] = hsp->hsp_query_from - 1;
-		cigar->str[1] = 'S';
+		cigar->size++;
+		cigar->elements = (CigarElementPtr*) safeCalloc(cigar->size, sizeof(CigarElementPtr));
+		cigar->elements[0] = (CigarElementPtr) safeCalloc(1, sizeof(CigarElement));
+		cigar->elements[0]->count = hsp->hsp_query_from - 1;
+		cigar->elements[0]->symbol = 'S';
 	}
 
 	for (pos = 0; pos < (hsp->hsp_align_len); pos++)
 	{
-		cigar->size += 2;
-		cigar->str = (int*) safeRealloc(cigar->str, cigar->size * sizeof(int));
+		cigar->size++;
+		cigar->elements = (CigarElementPtr*) safeRealloc(cigar->elements, cigar->size * sizeof(CigarElementPtr));
+		cigar->elements[cigar->size-1] = (CigarElementPtr) safeCalloc(1, sizeof(CigarElement));
 
 		if (hsp->hsp_hseq[pos] == '-')
 			CSTRMACRO('I', (hsp->hsp_hseq[pos] == '-')) // Count the number of insertions
@@ -166,19 +159,20 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 		else
 			CSTRMACRO('X', (hsp->hsp_hseq[pos] != '-' && hsp->hsp_qseq[pos] != '-' && hsp->hsp_hseq[pos] != hsp->hsp_qseq[pos])) // Count the number of mismatches
 
-		if (cigar->str[cigar->size-2] >= 100 && cigar->str[cigar->size-1] == 'D')
-			cigar->str[cigar->size-1] = 'N'; // If there is more than a hundred deletion at a time, it is considered a skipped region
+		if (cigar->elements[cigar->size-1]->count >= 100 && cigar->elements[cigar->size-1]->symbol == 'D')
+			cigar->elements[cigar->size-1]->symbol = 'N'; // If there is more than a hundred deletion at a time, it is considered a skipped region
 
-		if (cigar->str[cigar->size-1] != '=')
-			cigar->nbDiff += cigar->str[cigar->size-2];
+		if (cigar->elements[cigar->size-1]->symbol != '=')
+			cigar->nbDiff += cigar->elements[cigar->size-1]->count;
 	}
 
 	if ((queryLength - hsp->hsp_query_to) > 0) // Soft clipping at the end
 	{
-		cigar->size += 2;
-		cigar->str = (int*) safeRealloc(cigar->str, cigar->size * sizeof(int));
-		cigar->str[cigar->size-2] = queryLength - hsp->hsp_query_to;
-		cigar->str[cigar->size-1] = 'S';
+		cigar->size++;
+		cigar->elements = (CigarElementPtr*) safeRealloc(cigar->elements, cigar->size * sizeof(CigarElementPtr));
+		cigar->elements[cigar->size-1] = (CigarElementPtr) safeCalloc(1, sizeof(CigarElement));
+		cigar->elements[cigar->size-1]->count = queryLength - hsp->hsp_query_to;
+		cigar->elements[cigar->size-1]->symbol = 'S';
 	}
 
 	return cigar;
@@ -437,14 +431,14 @@ static void printSam(IterationSamPtr itSam)
 					fprintf(stdout, "%s\t%d\t%s\t%d\t%d\t", rSam->samOut[k]->query->name, flag, rSam->samOut[k]->rname, pos[k], rSam->score);
 					if (flag & SAM_REVERSE)
 					{
-						for (l = rSam->samOut[k]->cigar->size - 2; l >= 0; l -= 2)
-							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar->str[l], rSam->samOut[k]->cigar->str[l+1]);
+						for (l = rSam->samOut[k]->cigar->size - 1; l >= 0; l--)
+							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar->elements[l]->count, rSam->samOut[k]->cigar->elements[l]->symbol);
 						seq = revStr(rSam->samOut[k]->query->seq);
 					}
 					else
 					{
-						for (l = 0; l < (rSam->samOut[k]->cigar->size - 1); l += 2)
-							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar->str[l], rSam->samOut[k]->cigar->str[l+1]);
+						for (l = 0; l < rSam->samOut[k]->cigar->size; l++)
+							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar->elements[l]->count, rSam->samOut[k]->cigar->elements[l]->symbol);
 						seq = rSam->samOut[k]->query->seq;
 					}
 					fprintf(stdout, "\t%s\t%d\t%d\t%s\t", rnext, pos[invk], tlen, seq);
@@ -510,7 +504,7 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
 
 static void deallocItSam(IterationSamPtr itSam)
 {
-	int i = 0, j = 0, k = 0;
+	int i = 0, j = 0, k = 0, l = 0;
 
 	for (i = 0; i < itSam->countHit; i++)
 	{
@@ -522,7 +516,9 @@ static void deallocItSam(IterationSamPtr itSam)
 				{
 					if (itSam->samHits[i]->rsSam[j]->samOut[k]->cigar != NULL)
 					{
-						free(itSam->samHits[i]->rsSam[j]->samOut[k]->cigar->str);
+						for (l = 0; l < itSam->samHits[i]->rsSam[j]->samOut[k]->cigar->size; l++)
+							free(itSam->samHits[i]->rsSam[j]->samOut[k]->cigar->elements[l]);
+						free(itSam->samHits[i]->rsSam[j]->samOut[k]->cigar->elements);
 						free(itSam->samHits[i]->rsSam[j]->samOut[k]->cigar);
 					}
 					free(itSam->samHits[i]->rsSam[j]->samOut[k]);
