@@ -458,21 +458,21 @@ static void printSam(IterationSamPtr itSam)
 	}
 }
 
-static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFile fp2, int inter)
+static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFile fp2, AppParamPtr app)
 {
 	IterationSamPtr itSam = NULL;
 	IterationPtr itFor = NULL;
 	IterationPtr itRev = NULL;
 	RVarPtr rVar = (RVarPtr) safeCalloc(1, sizeof(RVar));
 
-	if (fp2 != NULL || inter) // Paired end
+	if (fp2 != NULL || app->inter) // Paired end
 	{
 		itFor = parseIteration(reader);
 		itRev = parseIteration(reader);
 		rVar->hitTmp = itRev->iteration_hits;
 
 		rVar->reads[0] = shortReadNext(fp);
-		if (inter)
+		if (app->inter)
 			rVar->reads[1] = shortReadNext(fp);
 		else
 			rVar->reads[1] = shortReadNext(fp2);
@@ -531,16 +531,15 @@ static void deallocItSam(IterationSamPtr itSam)
 	free(itSam);
 }
 
-int blastToSam(int argc, char** argv)
+int blastToSam(AppParamPtr app)
 {
 	xmlTextReaderPtr reader;
 	gzFile fp = NULL;
 	gzFile fp2 = NULL;
 	BlastOutputPtr blastOP = NULL;
 	IterationSamPtr itSam = NULL;
-	int inter = 0; // TODO: Put it in option -> get_longopt/getopt (look at Jennifer's code)
 
-	reader = safeXmlNewTextReaderFilename(argv[1]);
+	reader = safeXmlNewTextReaderFilename(app->blastOut);
 
 	safeXmlTextReaderRead(reader);
 
@@ -551,17 +550,17 @@ int blastToSam(int argc, char** argv)
 
 	blastOP = parseBlastOutput(reader);
 
-	if (parseDict(argv[2]) == 1)
+	if (parseDict(app->db) == 1)
 		ERROR("Error while reading the index base", 1)
 
-	fp = safeGzOpen(argv[3], "r");
+	fp = safeGzOpen(app->fastq1, "r");
 
-	if (argc == 5 && !inter)
-		fp2 = safeGzOpen(argv[4], "r");
+	if (app->fastq2 != NULL)
+		fp2 = safeGzOpen(app->fastq2, "r");
 
 	while (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "Iteration"))
 	{
-		itSam = iterationRecord(reader, fp, fp2, inter);
+		itSam = iterationRecord(reader, fp, fp2, app);
 		if (itSam != NULL)
 			deallocItSam(itSam);
 	}

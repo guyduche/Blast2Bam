@@ -1,5 +1,5 @@
 
-.PHONY: clean destroy makeSrc diff
+.PHONY: clean destroy diff
 VPATH = ../bin/
 FASTQ = ${HOME}/data/HIV/test_1.gz ${HOME}/data/HIV/test_2.gz
 DB = ${HOME}/data/HIV/db/hiv.fasta
@@ -13,10 +13,10 @@ diff: results.sam resultsBWA.sam
 
 # Prog
 results.sam: ./../bin/prog ./../bin/fastqParser db.dict ${FASTQ} $(addsuffix .nin,${DB})
-	./../bin/fastqParser ${FASTQ} | blastn -db ${DB} -query - -outfmt 5 | ./../bin/prog - db.dict ${FASTQ} > $@
+	./../bin/fastqParser ${FASTQ} | blastn -db ${DB} -query - -num_threads 5 -outfmt 5 | ./../bin/prog - db.dict ${FASTQ} > $@
 
-resultsTest.sam: ./../bin/prog ./../bin/fastqParser db.dict ${FASTQ} $(addsuffix .nin,${DB})
-	./../bin/fastqParser ${FASTQ} | blastn -db ${DB} -query - -outfmt 5 > test.xml
+resultsTest.xml: ./../bin/prog ./../bin/fastqParser db.dict ${FASTQ} $(addsuffix .nin,${DB})
+	./../bin/fastqParser ${FASTQ} | blastn -db ${DB} -query - -num_threads 5 -outfmt 5 > test.xml
 
 ./../bin/prog ./../bin/fastqParser:
 	(cd ../src; ${MAKE} )
