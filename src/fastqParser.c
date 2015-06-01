@@ -22,15 +22,13 @@ int main(int argc, char** argv)
 	while (reads[0] != NULL)
 	{
 		if (fp2 != NULL)
-		{
-			if (inter)
-				reads[1] = shortReadNext(fp);
-			else
-				reads[1] = shortReadNext(fp2);
-		}
+			reads[1] = shortReadNext(fp2);
+		
+		else if (inter)
+			reads[1] = shortReadNext(fp);
 
 		fprintf(stdout, ">%s\n%s\n", reads[0]->name, reads[0]->seq);
-		if (fp2 != NULL)
+		if (fp2 != NULL || inter)
 		{
 			fprintf(stdout, ">%s\n%s\n", reads[1]->name, reads[1]->seq);
 			shortReadFree(reads[1]);

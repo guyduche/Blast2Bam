@@ -8,15 +8,15 @@
 static char* gzReadLine(gzFile in, size_t* line_len)
 {
 	size_t len;
-	char buffer[BUFSIZ];
+	char buffer[50000];
 	char* line = NULL;
 
-	if (gzgets(in, buffer, BUFSIZ) == NULL) return NULL; // Warning verify end of string
+	if (gzgets(in, buffer, 50000) == NULL) return NULL; // Warning verify end of string
 	if (gzeof(in)) return NULL;
 
 	len = strlen(buffer);
 	if (len == 0 || buffer[len-1] != '\n')
-		ERROR("Error while reading the new line", NULL)
+		ERROR("Error while reading the new line\n", NULL)
 
 	buffer[len-1] = '\0';
 	*line_len = len-1;
