@@ -4,26 +4,36 @@
 #include "utils.h"
 #include "shortRead.h"
 
-
 static char* gzReadLine(gzFile in, size_t* line_len)
 {
-	size_t len;
-	char buffer[50000];
+	size_t len = 0;
+	int endsWithCR = 0;
+	char* buffer = NULL;
 	char* line = NULL;
+	*line_len = 0;
 
-	if (gzgets(in, buffer, 50000) == NULL) return NULL; // Warning verify end of string
-	if (gzeof(in)) return NULL;
+	while (!endsWithCR)
+	{
+		buffer = (char*) safeMalloc(BUFSIZ);
+		if (gzgets(in, buffer, BUFSIZ) == NULL) return NULL; // Warning verify end of string
+		if (gzeof(in)) return NULL;
 
-	len = strlen(buffer);
-	if (len == 0 || buffer[len-1] != '\n')
-		ERROR("Error while reading the new line\n", NULL)
+		len = strlen(buffer);
+		if (!len) ERROR("Error while reading the new line\n", NULL)
+		if (buffer[len-1] == '\n')
+		{
+			buffer[len-1] = '\0';
+			endsWithCR = 1;
+		}
 
-	buffer[len-1] = '\0';
-	*line_len = len-1;
+		line = (char*) safeRealloc(line, *line_len + len + 1);
+		if (*line_len == 0) line[0] = '\0';
+		strncat(line, buffer, len);
 
-	line = (char*) safeMalloc(len);
-	memcpy(line, buffer, len);
-
+		*line_len += len;
+		free(buffer);
+	}
+	(*line_len)--;
 	return line;
 }
 
@@ -38,7 +48,7 @@ void shortReadFree(ShortReadPtr ptr)
 
 ShortReadPtr shortReadNext(gzFile in)
 {
-	size_t line_len = 0UL;
+	size_t line_len = 0;
 	ShortReadPtr ptr = NULL;
 
 	ptr = (ShortReadPtr) safeCalloc(1, sizeof(ShortRead));
@@ -54,7 +64,7 @@ ShortReadPtr shortReadNext(gzFile in)
 	ptr->qual = gzReadLine(in, &line_len);
 
 	if (line_len != ptr->read_len)
-		ERROR("Wrong quality string length", NULL)
+		ERROR("Wrong quality string length\n", NULL)
 
 	return ptr;
 }

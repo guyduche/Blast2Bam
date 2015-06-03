@@ -40,6 +40,7 @@ typedef struct SamHit
 {
 	RecordSamPtr* rsSam; // List of all the paired records of a reference hit
 	size_t countRec; // Number of paired records
+	size_t countHSPsec; // Number of HSP found for the second read (useful for option -W)
 } SamHit, *SamHitPtr;
 
 typedef struct IterationSam
@@ -180,7 +181,7 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 
 
 /* Record all the alignment hits for a sequence (single end) or a pair of sequences (paired end) */
-static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr itSam, RVarPtr rVar)
+static IterationSamPtr hitRecord(HitPtr hitFirst, HitPtr hitSec, IterationSamPtr itSam, RVarPtr rVar)
 {
 	int i = 0;
 	size_t countHit, countRec;
@@ -197,123 +198,126 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 	countHit = itSam->countHit;
 	countRec = ++(itSam->samHits[countHit-1]->countRec);
 
-	itSam->samHits[countHit-1]->rsSam = (RecordSamPtr*) safeRealloc(itSam->samHits[countHit-1]->rsSam, countRec * sizeof(RecordSamPtr)); // Create and/or append a given Hit record table
+	itSam->samHits[countHit-1]->rsSam = (RecordSamPtr*) safeRealloc(itSam->samHits[countHit-1]->rsSam, countRec * sizeof(RecordSamPtr)); // Create or append a given Hit record table
 	rSam = itSam->samHits[countHit-1]->rsSam[countRec-1] = (RecordSamPtr) safeCalloc(1, sizeof(RecordSam)); // Create a new record
 
-	rSam->samOut[0] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the forward strand
-	rSam->samOut[0]->query = rVar->reads[0]; // Record the forward sequence infos
+	rSam->samOut[0] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the first read
+	rSam->samOut[0]->query = rVar->reads[0]; // Record the first read infos
 
-	if (hitRev != NULL)
+	if (hitSec != NULL)
 	{
 		rSam->samOut[1] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput));
-		rSam->samOut[1]->query = rVar->reads[1]; // Record the reverse sequence infos
+		rSam->samOut[1]->query = rVar->reads[1]; // Record the second read infos
 	}
 
-	if (hitFor->hit_def == NULL)
+	if (hitFirst->hit_def == NULL)
 	{
 		rVar->end = 1;
 		rVar->tmpHitNb = countHit;
 	}
 
-	if (hitRev == NULL || hitRev->hit_def == NULL) // Single end or the forward strand is mapped on a reference where the reverse strand is not
+	if (hitSec == NULL || hitSec->hit_def == NULL) // Single end or the first read is mapped on a reference where his mate is not
 	{
-		if (hitFor->hit_hsps == NULL) // Not mapped
+		if (hitFirst->hit_hsps == NULL) // Not mapped
 			rSam->score = 0;
 
 		else
 		{
-			rSam->samOut[0]->rname = shortName(hitFor->hit_def);
-			rSam->samOut[0]->hsp = hitFor->hit_hsps;
+			rSam->samOut[0]->rname = shortName(hitFirst->hit_def);
+			rSam->samOut[0]->hsp = hitFirst->hit_hsps;
 			rSam->samOut[0]->cigar = cigarStrBuilding(rSam->samOut[0]);
-			if (hitRev == NULL)
+			if (hitSec == NULL)
 				rSam->score = 60;
-			hitFor->hit_hsps = hitFor->hit_hsps->next;
-			if (hitFor->hit_hsps != NULL)
-				return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HSPs if there are any
+			hitFirst->hit_hsps = hitFirst->hit_hsps->next;
+			if (hitFirst->hit_hsps != NULL)
+				return hitRecord(hitFirst, hitSec, itSam, rVar); // Record the other HSPs if there are any
 		}
 	}
 
-	else if (rVar->end) // The reverse strand is mapped on a reference where the forward strand is not
+	else if (rVar->end) // The second read is mapped on a reference where the first read is not
 	{
 		if (rVar->tmpHitNb == countHit)
 		{
-			rSam->samOut[1]->rname = shortName(hitRev->hit_def);
-			rSam->samOut[1]->hsp = hitRev->hit_hsps;
+			itSam->samHits[countHit-1]->countHSPsec++;
+			rSam->samOut[1]->rname = shortName(hitSec->hit_def);
+			rSam->samOut[1]->hsp = hitSec->hit_hsps;
 			rSam->samOut[1]->cigar = cigarStrBuilding(rSam->samOut[1]);
-			hitRev->hit_hsps = hitRev->hit_hsps->next;
-			if (hitRev->hit_hsps != NULL)
-				return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HSPs if there are any
+			hitSec->hit_hsps = hitSec->hit_hsps->next;
+			if (hitSec->hit_hsps != NULL)
+				return hitRecord(hitFirst, hitSec, itSam, rVar); // Record the other HSPs if there are any
 		}
 	}
 
-	else if (strcmp(hitFor->hit_def, hitRev->hit_def))
+	else if (strcmp(hitFirst->hit_def, hitSec->hit_def))
 	{
-		if (hitRev->next == NULL || !strcmp(hitFor->hit_def, hitRev->next->hit_def))
+		if (hitSec->next == NULL || !strcmp(hitFirst->hit_def, hitSec->next->hit_def))
 		{
 			itSam->countHit++;
 			itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
 			itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
 		}
 
-		return hitRecord(hitFor, hitRev->next, itSam, rVar);
+		return hitRecord(hitFirst, hitSec->next, itSam, rVar);
 	}
 
-	else if (strcmp(hitFor->hit_def, hitRev->hit_def) == 0) // Forward and reverse strand are mapped on the same reference
+	else if (strcmp(hitFirst->hit_def, hitSec->hit_def) == 0) // Both reads are mapped on the same reference
 	{
 		if (rVar->hspTmp == NULL)
-			rVar->hspTmp = hitRev->hit_hsps;
+			rVar->hspTmp = hitSec->hit_hsps;
 
+		itSam->samHits[countHit-1]->countHSPsec++;
 		for (i = 0; i < 2; i++)
 		{
-			rSam->samOut[i]->hsp = (!i ? hitFor->hit_hsps : hitRev->hit_hsps);
-			rSam->samOut[i]->rname = shortName((!i ? hitFor->hit_def : hitRev->hit_def));
+			rSam->samOut[i]->hsp = (!i ? hitFirst->hit_hsps : hitSec->hit_hsps);
+			rSam->samOut[i]->rname = shortName((!i ? hitFirst->hit_def : hitSec->hit_def));
 			rSam->samOut[i]->cigar = cigarStrBuilding(rSam->samOut[i]);
 		}
 		rSam->score = 60;
-		hitRev->hit_hsps = hitRev->hit_hsps->next;
-		if (hitRev->hit_hsps != NULL)
-			return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HitRev HSPs if there are any
+		hitSec->hit_hsps = hitSec->hit_hsps->next;
+		if (hitSec->hit_hsps != NULL)
+			return hitRecord(hitFirst, hitSec, itSam, rVar); // Record the other HitSec HSPs if there are any
 		else
 		{
-			hitFor->hit_hsps = hitFor->hit_hsps->next;
-			if (hitFor->hit_hsps != NULL)
+			hitFirst->hit_hsps = hitFirst->hit_hsps->next;
+			if (hitFirst->hit_hsps != NULL)
 			{
-				hitRev->hit_hsps = rVar->hspTmp;
+				hitSec->hit_hsps = rVar->hspTmp;
 				rVar->hspTmp = NULL;
-				return hitRecord(hitFor, hitRev, itSam, rVar); // Record the other HitFor HSPs if there are any
+				itSam->samHits[countHit-1]->countHSPsec = 0;
+				return hitRecord(hitFirst, hitSec, itSam, rVar); // Record the other HitFirst HSPs if there are any
 			}
 		}
 	}
 
-	if (hitFor->next != NULL)
+	if (hitFirst->next != NULL)
 	{
 		itSam->countHit++;
 		itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
 		itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
-		if (hitRev == NULL)
+		if (hitSec == NULL)
 		{
 			if (rVar->hitTmp == NULL)
-				return hitRecord(hitFor->next, NULL, itSam, rVar);
+				return hitRecord(hitFirst->next, NULL, itSam, rVar);
 			else
-				return hitRecord(hitFor->next, rVar->hitTmp, itSam, rVar);
+				return hitRecord(hitFirst->next, rVar->hitTmp, itSam, rVar);
 		}
 		else
-			return hitRecord(hitFor->next, hitRev->next, itSam, rVar);
+			return hitRecord(hitFirst->next, hitSec->next, itSam, rVar);
 	}
 
 	if (rVar->hitTmp != NULL)
 	{
 		if (!rVar->end)
 		{
-			hitRev = rVar->hitTmp;
+			hitSec = rVar->hitTmp;
 			rVar->end = 1;
 		}
 
-		if (hitRev->next != NULL)
+		if (hitSec->next != NULL)
 		{
 			for (rVar->tmpHitNb = 0; rVar->tmpHitNb < countHit; rVar->tmpHitNb++)
 			{
-				if (!strcmp(hitRev->next->hit_def, itSam->samHits[rVar->tmpHitNb]->rsSam[0]->samOut[1]->rname))
+				if (!strcmp(hitSec->next->hit_def, itSam->samHits[rVar->tmpHitNb]->rsSam[0]->samOut[1]->rname))
 					break;
 			}
 
@@ -323,7 +327,7 @@ static IterationSamPtr hitRecord(HitPtr hitFor, HitPtr hitRev, IterationSamPtr i
 				itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
 				itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
 			}
-			return hitRecord(hitFor, hitRev->next, itSam, rVar);
+			return hitRecord(hitFirst, hitSec->next, itSam, rVar);
 		}
 	}
 
@@ -359,16 +363,16 @@ static char* revStr(char* oldStr)
 #define SAM_REVERSE 0x10		// Read mapped on the reverse strand
 #define SAM_MREVERSE 0x20		// Mate mapped on the reverse strand
 #define SAM_READF 0x40			// Read is first in pair
-#define SAM_READR 0x80			// Read is last in pair
+#define SAM_READL 0x80			// Read is last in pair
 #define SAM_SECONDARY 0x100		// Not primary alignment
 #define SAM_QCFAIL 0x200		// Failed control quality
 #define SAM_DUP 0x400			// Optical or PCR duplicate
 #define SAM_SUPPLEMENTARY 0x800	// Supplementary alignment
 
-static void printSam(IterationSamPtr itSam)
+static void printSam(IterationSamPtr itSam, AppParamPtr app)
 {
 	int i = 0, j = 0, k = 0, l = 0;
-	int invk = 0, tlen = 0, p0 = 0, p1 = 0;
+	int invk = 0, tlen = 0, p0 = 0, p1 = 0, doNotPrint = 0, countUnprint = 0;
 	int pos[2];
 	unsigned int flag = 0;
 	char* rnext = NULL;
@@ -383,17 +387,52 @@ static void printSam(IterationSamPtr itSam)
 			{
 				flag = 0;
 				invk = (k ? 0 : 1);
+				if (!k) doNotPrint = 0;
 				rSam = itSam->samHits[i]->rsSam[j];
-				if (rSam->samOut[k] == NULL) continue; // Used if single end
+				if (rSam->samOut[k] == NULL || doNotPrint) continue;
+				if (app->minLen != 0 && !k)
+				{
+					if (rSam->samOut[0]->hsp != NULL && rSam->samOut[0]->hsp->hsp_align_len > app->minLen)
+					{
+						if (rSam->samOut[1] != NULL && rSam->samOut[1]->hsp != NULL && rSam->samOut[1]->hsp->hsp_align_len < app->minLen)
+						{
+							if (countUnprint != (itSam->samHits[i]->countRec - itSam->samHits[i]->countHSPsec))
+								{doNotPrint = 1; countUnprint++; continue;}	
+							else
+								rSam->samOut[1]->hsp = NULL;
+						}
+					}
+					else
+					{
+						if (rSam->samOut[1] != NULL && rSam->samOut[1]->hsp != NULL && rSam->samOut[1]->hsp->hsp_align_len > app->minLen)
+						{
+							if (countUnprint != (itSam->samHits[i]->countRec - itSam->samHits[i]->countHSPsec))
+								{doNotPrint = 1; countUnprint++; continue;}
+							else
+								rSam->samOut[0]->hsp = NULL;
+						}
+						else
+						{
+							if (countUnprint != (itSam->samHits[i]->countRec -1))
+								{doNotPrint = 1; countUnprint++; continue;}
+							else
+							{
+								rSam->samOut[0]->hsp = NULL;
+								if (rSam->samOut[1] != NULL)
+									rSam->samOut[1]->hsp = NULL;
+							}
+						}
+					}
+				}
 
 				if (rSam->samOut[invk] != NULL) // Paired end
 				{
-					flag |= SAM_PAIRED | (!k ? SAM_READF : SAM_READR);
-					if (rSam->samOut[invk]->rname != NULL)
+					flag |= SAM_PAIRED | (!k ? SAM_READF : SAM_READL);
+					if (rSam->samOut[invk]->hsp != NULL)
 					{
 						flag |= (rSam->samOut[invk]->hsp->hsp_hit_to - rSam->samOut[invk]->hsp->hsp_hit_from < 0 ? SAM_MREVERSE : 0);
 						pos[invk] = (flag & SAM_MREVERSE ? rSam->samOut[invk]->hsp->hsp_hit_to : rSam->samOut[invk]->hsp->hsp_hit_from);
-						if (rSam->samOut[k]->rname != NULL && !strcmp(rSam->samOut[k]->rname, rSam->samOut[invk]->rname))
+						if (rSam->samOut[k]->hsp != NULL && !strcmp(rSam->samOut[k]->rname, rSam->samOut[invk]->rname))
 						{
 							rnext = "=";
 							flag |= SAM_PROPER_PAIR;
@@ -404,7 +443,6 @@ static void printSam(IterationSamPtr itSam)
 						}
 						else
 							rnext = rSam->samOut[invk]->rname;
-
 					}
 					else
 					{
@@ -455,6 +493,7 @@ static void printSam(IterationSamPtr itSam)
 				}
 			}
 		}
+		countUnprint = 0;
 	}
 }
 
@@ -478,7 +517,7 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
 			rVar->reads[1] = shortReadNext(fp2);
 
 		itSam = hitRecord(itFor->iteration_hits, itRev->iteration_hits, itSam, rVar);
-		printSam(itSam);
+		printSam(itSam, app);
 
 		deallocIteration(itFor);
 		deallocIteration(itRev);
@@ -491,7 +530,7 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
 		itFor = parseIteration(reader);
 		rVar->reads[0] = shortReadNext(fp);
 		itSam = hitRecord(itFor->iteration_hits, NULL, itSam, rVar);
-		printSam(itSam);
+		printSam(itSam, app);
 		deallocIteration(itFor);
 		shortReadFree(rVar->reads[0]);
 	}

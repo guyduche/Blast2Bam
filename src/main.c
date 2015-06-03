@@ -12,14 +12,17 @@ int main(int argc, char** argv)
 	static struct option long_options[] = 
 	{
 		{"interleaved", no_argument, 0, 'p'},
+		{"minAlignLength", required_argument, 0, 'W'},
 		{0, 0, 0, 0}
 	};
 	
-	while ((c = getopt_long(argc, argv,"p", long_options, &option_index)) != -1)
+	while ((c = getopt_long(argc, argv,"pW:", long_options, &option_index)) != -1)
 	{
 		switch (c)
 		{
 			case 'p': app->inter = 1; break;
+			case 'W': app->minLen = (int) strtol(optarg, NULL, 10); break;
+			case ':': fprintf(stderr, "Option -%c requires an argument\n", optopt); return EXIT_FAILURE; break;
 			case '?': fprintf(stderr, "Option -%c is undefined\n", optopt); return EXIT_FAILURE; break;
 		}
 	}

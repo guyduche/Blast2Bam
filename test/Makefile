@@ -4,6 +4,8 @@ VPATH = ../bin/
 FASTQ = ${HOME}/data/nanopore/phage/ERR732557.fastq.gz
 DB = ${HOME}/data/nanopore/phage/db/m13mp18.fasta
 SRA = ${HOME}/data/HIV/ERR656485.sra
+BWA = ../../../programs/bwa-0.7.12/bwa
+Blast = ../../../programs/ncbi-blast-2.2.30+/bin/blastn
 
 all: bam_idx bamBWA_idx
 
@@ -23,7 +25,7 @@ resultsSorted.bam: results.sam
 results.xml.gz : resultsSorted.sam
 
 results.sam : ./../bin/prog ./../bin/fastqParser db.dict ${FASTQ} $(addsuffix .nin,${DB})
-	./../bin/fastqParser ${FASTQ} | blastn -db ${DB} -num_threads 4 -word_size 20 -outfmt 5 | tee results.xml |  ./../bin/prog - db.dict ${FASTQ} > $@
+	./../bin/fastqParser ${FASTQ} | ./${Blast} -db ${DB} -num_threads 4 -word_size 14 -outfmt 5 | tee results.xml |  ./../bin/prog -W 20 - db.dict ${FASTQ} > $@
 	gzip --best -f results.xml
 
 ./../bin/prog ./../bin/fastqParser:
@@ -43,10 +45,10 @@ resultsBWASorted.bam: resultsBWA.sam
 	samtools view -Sb $< | samtools sort - $(basename $@)
 
 resultsBWA.sam: ${FASTQ} ${DB}
-	bwa mem -k 20 ${DB} ${FASTQ} > $@
+	./${BWA} mem -t 4 -x ont2d ${DB} ${FASTQ} > $@
 
 indexBWA: ${DB}
-	bwa index ${DB}
+	./${BWA} index ${DB}
 
 # Fastq
 fastq: ${SRA}
