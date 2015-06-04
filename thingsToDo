@@ -3,11 +3,9 @@ call to blast with sequence generated
 see how we can do that Fasta style (with the header)
 then create a pipe to get the xml out of blast line by line
 
-fun with flags
+fun with flags (secondary and supplementary)
 
-option for interleaved
-
-pairing of forward and reverse
+distance between positions of first read and his mate
 
 chimeric alignments
 

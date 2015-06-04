@@ -13,15 +13,19 @@ int main(int argc, char** argv)
 	{
 		{"interleaved", no_argument, 0, 'p'},
 		{"minAlignLength", required_argument, 0, 'W'},
+		{"posOnChr", no_argument, 0, 'z'},
+		{"readGroup", required_argument, 0, 'R'},
 		{0, 0, 0, 0}
 	};
 	
-	while ((c = getopt_long(argc, argv,"pW:", long_options, &option_index)) != -1)
+	while ((c = getopt_long(argc, argv,"pR:W:z", long_options, &option_index)) != -1)
 	{
 		switch (c)
 		{
 			case 'p': app->inter = 1; break;
+			case 'R': app->readGroup = optarg; break;
 			case 'W': app->minLen = (int) strtol(optarg, NULL, 10); break;
+			case 'z': app->posOnChr = 1; break;
 			case ':': fprintf(stderr, "Option -%c requires an argument\n", optopt); return EXIT_FAILURE; break;
 			case '?': fprintf(stderr, "Option -%c is undefined\n", optopt); return EXIT_FAILURE; break;
 		}

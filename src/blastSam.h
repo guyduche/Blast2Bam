@@ -5,7 +5,9 @@
 typedef struct AppParam
 {
 	int inter;
+	int posOnChr;
 	int minLen;
+	char* readGroup;
 	char* blastOut;
 	char* db;
 	char* fastq1;

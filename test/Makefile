@@ -25,7 +25,7 @@ resultsSorted.bam: results.sam
 results.xml.gz : resultsSorted.sam
 
 results.sam : ./../bin/prog ./../bin/fastqParser db.dict ${FASTQ} $(addsuffix .nin,${DB})
-	./../bin/fastqParser ${FASTQ} | ./${Blast} -db ${DB} -num_threads 4 -word_size 14 -outfmt 5 | tee results.xml |  ./../bin/prog -W 20 - db.dict ${FASTQ} > $@
+	./../bin/fastqParser ${FASTQ} | ./${Blast} -db ${DB} -num_threads 4 -word_size 14 -outfmt 5 | tee results.xml |  ./../bin/prog -W 20 -z -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} > $@
 	gzip --best -f results.xml
 
 ./../bin/prog ./../bin/fastqParser:
@@ -35,7 +35,7 @@ db.dict: ${DB}
 	picard-tools CreateSequenceDictionary R=$< O=$@
 
 $(addsuffix .nin,${DB}) : ${DB}
-	makeblastdb -in $< -dbtype nucl
+	makeblastdb -in $< -dbtype 'nucl'
 
 # BWA
 bamBWA_idx: resultsBWASorted.bam
@@ -45,7 +45,7 @@ resultsBWASorted.bam: resultsBWA.sam
 	samtools view -Sb $< | samtools sort - $(basename $@)
 
 resultsBWA.sam: ${FASTQ} ${DB}
-	./${BWA} mem -t 4 -x ont2d ${DB} ${FASTQ} > $@
+	./${BWA} mem -t 4 -x 'ont2d' ${DB} ${FASTQ} > $@
 
 indexBWA: ${DB}
 	./${BWA} index ${DB}

@@ -27,7 +27,7 @@ static char* gzReadLine(gzFile in, size_t* line_len)
 		}
 
 		line = (char*) safeRealloc(line, *line_len + len + 1);
-		if (*line_len == 0) line[0] = '\0';
+		if (*line_len == 0) *line = '\0';
 		strncat(line, buffer, len);
 
 		*line_len += len;
