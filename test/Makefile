@@ -6,6 +6,9 @@ DB = ${HOME}/data/nanopore/phage/db/m13mp18.fasta
 SRA = ${HOME}/data/HIV/ERR656485.sra
 BWA = ../../../programs/bwa-0.7.12/bwa
 Blast = ../../../programs/ncbi-blast-2.2.30+/bin/blastn
+LAST = ../../../programs/last-cea0cca54384/src/lastal
+LASTdb = ../../../programs/last-cea0cca54384/src/lastdb
+MafConvert = ../../../programs/last-cea0cca54384/scripts/maf-convert
 
 all: bam_idx bamBWA_idx
 
@@ -22,10 +25,11 @@ bam_idx: resultsSorted.bam
 resultsSorted.bam: results.sam
 	samtools view -Sb $< | samtools sort - $(basename $@)
 
-results.xml.gz : resultsSorted.sam
+results.xml.gz: resultsSorted.sam
 
-results.sam : ./../bin/prog ./../bin/fastqParser db.dict ${FASTQ} $(addsuffix .nin,${DB})
-	./../bin/fastqParser ${FASTQ} | ./${Blast} -db ${DB} -num_threads 4 -word_size 14 -outfmt 5 | tee results.xml |  ./../bin/prog -W 20 -z -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} > $@
+results.sam: ./../bin/prog ./../bin/fastqParser db.dict ${FASTQ} $(addsuffix .nin,${DB})
+	./../bin/fastqParser ${FASTQ} | ./${Blast} -db ${DB} -num_threads 4 -word_size 14 -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
+	tee results.xml | ./../bin/prog -W 20 -z -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} > $@
 	gzip --best -f results.xml
 
 ./../bin/prog ./../bin/fastqParser:
@@ -34,7 +38,7 @@ results.sam : ./../bin/prog ./../bin/fastqParser db.dict ${FASTQ} $(addsuffix .n
 db.dict: ${DB}
 	picard-tools CreateSequenceDictionary R=$< O=$@
 
-$(addsuffix .nin,${DB}) : ${DB}
+$(addsuffix .nin,${DB}): ${DB}
 	makeblastdb -in $< -dbtype 'nucl'
 
 # BWA
@@ -50,13 +54,26 @@ resultsBWA.sam: ${FASTQ} ${DB}
 indexBWA: ${DB}
 	./${BWA} index ${DB}
 
+# LAST
+bamLAST_idx: resultsLASTSorted.bam
+	samtools index $<
+
+resultsLASTSorted.bam: resultsLAST.sam
+	samtools view -Sb $< | samtools sort - $(basename $@)
+
+resultsLAST.sam: lastdb ${FASTQ} db.dict
+	gunzip -c ${FASTQ} | ./${LAST} -r 1 -a 1 -b 1 -q 1 -Q 1 $< | ./${MafConvert} -f db.dict sam > $@
+
+lastdb: ${DB}
+	./${LASTdb} $@ ${DB}
+
 # Fastq
 fastq: ${SRA}
 	(cd ${HOME}/data/HIV; fastq-dump --split-files --gzip ${SRA})
 
 # Clean
 clean:
-	rm -f *.sam *.bam *.bai *.tmp *.txt *.xml.gz db.dict
+	rm -f *.sam *.bam *.bai *.tmp *.txt *.xml.gz db.dict lastdb*
 	
 destroy: clean
 	(cd ../src; ${MAKE} clean)

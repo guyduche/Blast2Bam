@@ -64,8 +64,7 @@ static void sq_line(char* filename)
 {
 	FILE* reader;
 	char* str = NULL;
-	int c;
-	int countSpace = 0;
+	int c, countSpace = 0;
 	size_t lenStr = 0;
 
 	reader = safeFOpen(filename, "r");
@@ -73,10 +72,7 @@ static void sq_line(char* filename)
 	do
 	{
 		if (countSpace > 2 || !countSpace) // Skip the first line of the file and the end of the other lines
-			do
-			{
-				c = fgetc(reader);
-			} while (c != '\n' && c != EOF);
+			do c = fgetc(reader); while (c != '\n' && c != EOF);
 
 		lenStr = 0;
 		countSpace = 0;
@@ -86,22 +82,16 @@ static void sq_line(char* filename)
 
 		while (c != '\n' && c != EOF && countSpace <= 2) // Keep only the reference name and its length
 		{
-			if (c == '\t')
-				countSpace++;
-
+			if (c == '\t') countSpace++;
 			str = (char*) safeRealloc(str, lenStr+1);
 			str[lenStr-1] = (char) c;
 			c = fgetc(reader);
 			lenStr++;
 		}
 
-		str = (char*) safeRealloc(str, lenStr);
-		str[lenStr-1] = '\0';
-
-		fprintf(stdout, "%s", str); // Print the SQ line in the SAM file
+		fwrite(str, sizeof(char), lenStr-1, stdout); // Print the SQ line in the SAM file
 		free(str);
-		if (c != EOF)
-			fprintf(stdout, "\n");
+		if (c != EOF) fprintf(stdout, "\n");
 
 	} while (c != EOF);
 
@@ -121,6 +111,7 @@ static int samHead(AppParamPtr app)
 	sq_line(app->db);
 	if (app->readGroup != NULL)
 		if (rg_line(app->readGroup) == 1) return 1;
+	fprintf(stdout, "%s\n", app->pg_line);
 	return 0;
 }
 
@@ -150,10 +141,7 @@ static char* readGroupID(char* readGroup)
 		count = 1; \
 		pos++; \
 		while (pos < (hsp->hsp_align_len) && FUNCT) \
-		{ \
-			count++; \
-			pos++; \
-		} \
+			count++, pos++; \
 		pos--;}
 
 /* Build the CIGAR string of the query */
@@ -346,10 +334,7 @@ static IterationSamPtr hitRecord(HitPtr hitFirst, HitPtr hitSec, IterationSamPtr
 		if (hitSec->next != NULL)
 		{
 			for (rVar->tmpHitNb = 0; rVar->tmpHitNb < countHit; rVar->tmpHitNb++)
-			{
-				if (!strcmp(hitSec->next->hit_def, itSam->samHits[rVar->tmpHitNb]->rsSam[0]->samOut[1]->rname))
-					break;
-			}
+				if (!strcmp(hitSec->next->hit_def, itSam->samHits[rVar->tmpHitNb]->rsSam[0]->samOut[1]->rname)) break;
 
 			if (rVar->tmpHitNb == countHit)
 			{
@@ -544,15 +529,15 @@ static void printSam(IterationSamPtr itSam, AppParamPtr app, char* rgID)
 static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFile fp2, AppParamPtr app, char* rgID)
 {
 	IterationSamPtr itSam = NULL;
-	IterationPtr itFor = NULL;
-	IterationPtr itRev = NULL;
+	IterationPtr itFirst = NULL;
+	IterationPtr itSec = NULL;
 	RVarPtr rVar = (RVarPtr) safeCalloc(1, sizeof(RVar));
 
 	if (fp2 != NULL || app->inter) // Paired end
 	{
-		itFor = parseIteration(reader);
-		itRev = parseIteration(reader);
-		rVar->hitTmp = itRev->iteration_hits;
+		itFirst = parseIteration(reader);
+		itSec = parseIteration(reader);
+		rVar->hitTmp = itSec->iteration_hits;
 
 		rVar->reads[0] = shortReadNext(fp);
 		if (app->inter)
@@ -560,22 +545,22 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
 		else
 			rVar->reads[1] = shortReadNext(fp2);
 
-		itSam = hitRecord(itFor->iteration_hits, itRev->iteration_hits, itSam, rVar);
+		itSam = hitRecord(itFirst->iteration_hits, itSec->iteration_hits, itSam, rVar);
 		printSam(itSam, app, rgID);
 
-		deallocIteration(itFor);
-		deallocIteration(itRev);
+		deallocIteration(itFirst);
+		deallocIteration(itSec);
 		shortReadFree(rVar->reads[0]);
 		shortReadFree(rVar->reads[1]);
 	}
 
 	else // Single end
 	{
-		itFor = parseIteration(reader);
+		itFirst = parseIteration(reader);
 		rVar->reads[0] = shortReadNext(fp);
-		itSam = hitRecord(itFor->iteration_hits, NULL, itSam, rVar);
+		itSam = hitRecord(itFirst->iteration_hits, NULL, itSam, rVar);
 		printSam(itSam, app, rgID);
-		deallocIteration(itFor);
+		deallocIteration(itFirst);
 		shortReadFree(rVar->reads[0]);
 	}
 

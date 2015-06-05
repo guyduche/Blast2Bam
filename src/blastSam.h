@@ -7,6 +7,7 @@ typedef struct AppParam
 	int inter;
 	int posOnChr;
 	int minLen;
+	char* pg_line;
 	char* readGroup;
 	char* blastOut;
 	char* db;
