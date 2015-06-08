@@ -1,7 +1,7 @@
 
 .PHONY: all clean
 CC = gcc
-CFLAGS = -c -g -Wall `xml2-config --cflags`
+CFLAGS = -c -O3 -Wall `xml2-config --cflags`
 LDFLAGS = -lz `xml2-config --libs`
 VPATH = ../bin/
 EXEC = prog fastqParser

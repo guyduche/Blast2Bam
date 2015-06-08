@@ -23,11 +23,11 @@ int main(int argc, char** argv)
 	strcpy(app->pg_line, "@PG\tID:NGSBlast\tPN:NGSBlast\tVN:0.1\tCL:");
 	for (i = 0; i < argc; i++)
 	{
-		if (!i)
-			app->pg_line = safeRealloc(app->pg_line, strlen(app->pg_line) + strlen(argv[i]));
+		if (!i || i == argc - 1)
+			app->pg_line = safeRealloc(app->pg_line, strlen(app->pg_line) + strlen(argv[i]) + 1);
 		else
 		{
-			app->pg_line = safeRealloc(app->pg_line, strlen(app->pg_line) + strlen(argv[i]) + 1);
+			app->pg_line = safeRealloc(app->pg_line, strlen(app->pg_line) + strlen(argv[i]) + 2);
 			strcat(app->pg_line, " ");
 		}
 		strcat(app->pg_line, argv[i]);
@@ -47,15 +47,19 @@ int main(int argc, char** argv)
 	}
 	
 	if (argc < optind + 2)
-		return EXIT_FAILURE;
+		return EXIT_FAILURE; // TODO: Usage
 	
 	app->blastOut = argv[optind];
 	app->db = argv[optind + 1];
 	app->fastq1 = argv[optind + 2];
 	
 	if (argc == optind + 4 && !app->inter)
+	{
 		app->fastq2 = argv[optind + 3];
-	
+		if (!strcmp(app->fastq1, app->fastq2)) 
+			ERROR("FastQ_1 and FastQ_2 must be different\n", EXIT_FAILURE)
+	}
+
 	ret = blastToSam(app);
 	
 	free(app->pg_line);

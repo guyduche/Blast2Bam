@@ -374,7 +374,7 @@ static int firstPosRef(char* rname)
 	
 	for (i = 0; i < strlen(rname) && c != ':'; i++)
 		c = rname[i];
-	
+
 	return strtol(rname + i, NULL, 10);
 }
 
@@ -396,7 +396,7 @@ static int firstPosRef(char* rname)
 static void printSam(IterationSamPtr itSam, AppParamPtr app, char* rgID)
 {
 	int i = 0, j = 0, k = 0, l = 0;
-	int invk = 0, tlen = 0, p0 = 0, p1 = 0, doNotPrint = 0, countUnprint = 0;
+	int invk = 0, tlen = 0, len0 = 0, len1 = 0, doNotPrint = 0, countUnprint = 0;
 	long int pos[2];
 	unsigned int flag = 0;
 	char* rnext = NULL;
@@ -457,14 +457,30 @@ static void printSam(IterationSamPtr itSam, AppParamPtr app, char* rgID)
 						flag |= (rSam->samOut[invk]->hsp->hsp_hit_to - rSam->samOut[invk]->hsp->hsp_hit_from < 0 ? SAM_MREVERSE : 0);
 						pos[invk] = (flag & SAM_MREVERSE ? rSam->samOut[invk]->hsp->hsp_hit_to : rSam->samOut[invk]->hsp->hsp_hit_from);
 						if (app->posOnChr) pos[invk] += firstPosRef(rSam->samOut[invk]->rname);
-						if (rSam->samOut[k]->hsp != NULL && !strcmp(rSam->samOut[k]->rname, rSam->samOut[invk]->rname))
+						if (rSam->samOut[k]->hsp != NULL)
 						{
-							rnext = "=";
-							flag |= SAM_PROPER_PAIR;
-							flag |= (rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from < 0 ? SAM_REVERSE : 0);
-							p0 = (flag & SAM_REVERSE ? rSam->samOut[k]->hsp->hsp_hit_to + rSam->samOut[k]->hsp->hsp_align_len : rSam->samOut[k]->hsp->hsp_hit_from);
-							p1 = (flag & SAM_MREVERSE ? rSam->samOut[invk]->hsp->hsp_hit_to + rSam->samOut[invk]->hsp->hsp_align_len : rSam->samOut[invk]->hsp->hsp_hit_from);
-							tlen = p1 - p0;
+							tlen = rSam->samOut[invk]->hsp->hsp_hit_from - rSam->samOut[k]->hsp->hsp_hit_from;
+							if (tlen) tlen += (tlen > 0 ? 1 : -1);
+							len0 = abs(rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from) + 1;
+							len1 = abs(rSam->samOut[invk]->hsp->hsp_hit_to - rSam->samOut[invk]->hsp->hsp_hit_from) + 1;
+							if (abs(tlen) > 3 * (len0 >= len1 ? len0 : len1) || abs(tlen) < (len0 >= len1 ? len1 : len0))
+								if (countUnprint != (itSam->samHits[i]->countRec -1))
+									{doNotPrint = 1; countUnprint++; continue;}
+								else
+								{
+									flag &= ~SAM_MREVERSE;
+									flag |= SAM_MUNMAP;
+									rSam->score = 0;
+									rnext = "*";
+									pos[invk] = 0;
+									rSam->samOut[k]->hsp = NULL;
+									rSam->samOut[invk]->hsp = NULL;
+								}
+							else
+							{
+								rnext = "=";
+								flag |= SAM_PROPER_PAIR;
+							}
 						}
 						else
 							rnext = shortName(rSam->samOut[invk]->rname);
@@ -489,6 +505,7 @@ static void printSam(IterationSamPtr itSam, AppParamPtr app, char* rgID)
 				}
 				else
 				{
+					if (j - countUnprint != 0) flag |= SAM_SECONDARY;
 					flag |= (rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from < 0 ? SAM_REVERSE : 0);
 					pos[k] = (flag & SAM_REVERSE ? rSam->samOut[k]->hsp->hsp_hit_to : rSam->samOut[k]->hsp->hsp_hit_from);
 					if (app->posOnChr) pos[k] += firstPosRef(rSam->samOut[k]->rname);

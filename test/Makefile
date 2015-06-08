@@ -1,8 +1,8 @@
 .PHONY: clean destroy diff bam_idx bamBWA_idx
 .SHELL=/bin/bash
 VPATH = ../bin/
-FASTQ = ${HOME}/data/nanopore/phage/ERR732557.fastq.gz
-DB = ${HOME}/data/nanopore/phage/db/m13mp18.fasta
+FASTQ = ${HOME}/data/HIV/ERR656485_1.fastq.gz ${HOME}/data/HIV/ERR656485_2.fastq.gz
+DB = ${HOME}/data/HIV/db/hiv.fasta
 SRA = ${HOME}/data/HIV/ERR656485.sra
 BWA = ../../../programs/bwa-0.7.12/bwa
 Blast = ../../../programs/ncbi-blast-2.2.30+/bin/blastn
@@ -13,7 +13,7 @@ MafConvert = ../../../programs/last-cea0cca54384/scripts/maf-convert
 all: bam_idx bamBWA_idx
 
 diff: results.sam resultsBWA.sam
-	$(foreach S,$^,cut -f 1,3,4,6 $S | grep -vF '@SQ' | grep -F 'M13' | sed 's/	/~/' | LC_ALL=C sort -t '	' -k 1,1 -k 2,2  > $(addsuffix .tmp,$S); )
+	$(foreach S,$^,cut -f 1,3,4,6 $S | grep -vF '@SQ' | grep -F 'gi|' | sed 's/	/~/' | LC_ALL=C sort -t '	' -k 1,1 -k 2,2  > $(addsuffix .tmp,$S); )
 	join -t '	' -1 1 -2 1 $(addsuffix .tmp,$^) > same.read-chrom.txt
 	join -t '	' -v 1 -1 1 -2 1 $(addsuffix .tmp,$^) > only.prog.txt
 	join -t '	' -v 2 -1 1 -2 1 $(addsuffix .tmp,$^) > only.bwa.txt
@@ -28,8 +28,8 @@ resultsSorted.bam: results.sam
 results.xml.gz: resultsSorted.sam
 
 results.sam: ./../bin/prog ./../bin/fastqParser db.dict ${FASTQ} $(addsuffix .nin,${DB})
-	./../bin/fastqParser ${FASTQ} | ./${Blast} -db ${DB} -num_threads 4 -word_size 14 -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
-	tee results.xml | ./../bin/prog -W 20 -z -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} > $@
+	./../bin/fastqParser ${FASTQ} | ./${Blast} -db ${DB} -num_threads 4 -word_size 20 -outfmt 5 | \
+	tee results.xml | ./../bin/prog -z -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} > $@
 	gzip --best -f results.xml
 
 ./../bin/prog ./../bin/fastqParser:
@@ -49,7 +49,7 @@ resultsBWASorted.bam: resultsBWA.sam
 	samtools view -Sb $< | samtools sort - $(basename $@)
 
 resultsBWA.sam: ${FASTQ} ${DB}
-	./${BWA} mem -t 4 -x 'ont2d' ${DB} ${FASTQ} > $@
+	./${BWA} mem -t 4 ${DB} ${FASTQ} > $@
 
 indexBWA: ${DB}
 	./${BWA} index ${DB}
@@ -62,7 +62,7 @@ resultsLASTSorted.bam: resultsLAST.sam
 	samtools view -Sb $< | samtools sort - $(basename $@)
 
 resultsLAST.sam: lastdb ${FASTQ} db.dict
-	gunzip -c ${FASTQ} | ./${LAST} -r 1 -a 1 -b 1 -q 1 -Q 1 $< | ./${MafConvert} -f db.dict sam > $@
+	gunzip -c ${FASTQ} | ./${LAST} -Q 1 $< | ./${MafConvert} -f db.dict sam > $@
 
 lastdb: ${DB}
 	./${LASTdb} $@ ${DB}
