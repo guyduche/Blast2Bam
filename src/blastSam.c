@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2015
+Copyright (c) 2015 Aurelien Guy-Duche
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -93,7 +93,7 @@ typedef struct RecordVariables // Temp structure used in hitRecord()
 
 
 /* Print SAM header */
-static void sq_line(AppParamPtr app,char* filename)
+static void sq_line(AppParamPtr app, char* filename)
 {
 	FILE* reader;
 	char* str = NULL;
@@ -124,14 +124,14 @@ static void sq_line(AppParamPtr app,char* filename)
 
 		fwrite(str, sizeof(char), lenStr-1, app->out); // Print the SQ line in the SAM file
 		free(str);
-		if (c != EOF) fprintf(app->out, "\n");
+		if (c != EOF) fputc('\n', app->out);
 
 	} while (c != EOF);
 
 	fclose(reader);
 }
 
-static int rg_line(AppParamPtr app,char* readGroup)
+static int rg_line(AppParamPtr app, char* readGroup)
 {	
 	if (strstr(readGroup, "@RG") != readGroup) return 1;
 	if (strstr(readGroup, "\tID:") == NULL) return 1;
@@ -150,13 +150,13 @@ static int samHead(AppParamPtr app)
 
 static char* readGroupID(char* readGroup)
 {
-	size_t i;
-	int c = 0;
 	char* rgID = NULL;
 	char* str = strstr(readGroup, "\tID:");
 	str += 4;
+	size_t i, str_length = strlen(str);
+	int c = 0;
 	
-	for (i = 0; i <= strlen(str) && c != '\t'; i++)
+	for (i = 0; i <= str_length && c != '\t'; i++)
 		c = str[i];
 
 	rgID = safeMalloc(i);
@@ -185,7 +185,7 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 	HspPtr hsp = samOut->hsp;
 	CigarPtr cigar = (CigarPtr) safeCalloc(1, sizeof(Cigar));
 
-	if (hsp->hsp_query_from > 1) // Soft clipping at the beginning
+	if (hsp->hsp_query_from > 1) // 5' Soft clipping
 	{
 		cigar->size++;
 		cigar->elements = (CigarElementPtr*) safeCalloc(cigar->size, sizeof(CigarElementPtr));
@@ -216,10 +216,10 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 			cigar->elements[cigar->size-1]->symbol = 'N'; // If there is more than a hundred deletion at a time, it is considered a skipped region
 
 		if (cigar->elements[cigar->size-1]->symbol != '=')
-			cigar->nbDiff += cigar->elements[cigar->size-1]->count;
+			cigar->nbDiff += cigar->elements[cigar->size-1]->count; // Count the number of I, D/N and X for the NM tag
 	}
 
-	if ((queryLength - hsp->hsp_query_to) > 0) // Soft clipping at the end
+	if ((queryLength - hsp->hsp_query_to) > 0) // 3' Soft clipping
 	{
 		cigar->size++;
 		cigar->elements = (CigarElementPtr*) safeRealloc(cigar->elements, cigar->size * sizeof(CigarElementPtr));
@@ -404,16 +404,11 @@ static char* revStr(char* oldStr)
 
 static int firstPosRef(const char* rname)
 {
-	char* colon = strchr(rname,':');
-	if(colon==NULL) 
-		{
-		DEBUG("Cannot find colon in %s",rname);
-		exit(EXIT_FAILURE);
-		}
+	char* colon = strchr(rname, ':');
+	if(colon == NULL) 
+		return 0;
 	return strtol(colon + 1, NULL, 10);
 }
-
-// NOTE: for the flag, to substract you can use flag &= ~0x100
 
 #define SAM_PAIRED 0x1			// Paired end
 #define SAM_PROPER_PAIR 0x2		// Read mapped in a proper pair

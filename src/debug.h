@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2015
+Copyright (c) 2015 Aurelien Guy-Duche
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -30,13 +30,12 @@ History:
 #define DEBUG_H
 #include <stdio.h>
 
-#define DEBUG(FORMAT,ARGS...) \
+#define DEBUG(FORMAT, ARGS...) \
 	do {\
-	fprintf(stderr,"[%s:%d]:",__FILE__,__LINE__); \
-	fprintf(stderr,FORMAT,ARGS);\
-	fputc('\n',stderr);\
-	}while(0)
-
+	fprintf(stderr, "[%s:%d]:", __FILE__, __LINE__); \
+	fprintf(stderr, FORMAT, ARGS);\
+	fputc('\n', stderr);\
+	} while(0)
 
 #endif
 

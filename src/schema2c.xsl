@@ -5,7 +5,7 @@
 <xsl:variable name="mit2">/*
 The MIT License (MIT)
 
-Copyright (c) 2015
+Copyright (c) 2015 Aurelien Guy-Duche
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -119,12 +119,7 @@ typedef struct <xsl:value-of select="@name"/>
 				<xsl:otherwise>parse<xsl:value-of select="@type"/>(reader)</xsl:otherwise>
 			</xsl:choose>)
 		</xsl:for-each>
-		else
-			{
-			DEBUG("Don't know how to handle blast tag &lt;%s&gt;",
-				(const char*)xmlTextReaderConstName(reader));
-			exit(EXIT_FAILURE);
-			}
+		
 		evt = safeXmlTextReaderRead(reader);
 	}
 

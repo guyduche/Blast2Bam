@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2015
+Copyright (c) 2015 Aurelien Guy-Duche
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -43,7 +43,7 @@ typedef struct AppParam
 	char* db;
 	char* fastq1;
 	char* fastq2;
-	FILE* out;//outputstream: default is stdout
+	FILE* out; // Output stream: default is stdout
 }AppParam, *AppParamPtr;
 
 int blastToSam(AppParamPtr app);
