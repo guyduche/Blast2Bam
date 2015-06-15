@@ -3,15 +3,15 @@
 CC = gcc
 CFLAGS = -c -O3 -Wall `xml2-config --cflags`
 LDFLAGS = -lz `xml2-config --libs`
-VPATH = ../bin/
-EXEC = prog fastqParser
-OBJS = parseXML.o blastSam.o shortRead.o utils.o main.o
+BINDIR = ../bin/
+EXEC = blast2bam fastqParser
+OBJS = $(addsuffix .o,parseXML blastSam shortRead utils main)
 
-all: ${OBJS} fastqParser.o
-	${MAKE} ${EXEC}
+all: $(addprefix ${BINDIR},${EXEC})
+
 
 %.o: %.c
-	$(CC) ${CFLAGS} -o ../bin/$@ $<
+	$(CC) ${CFLAGS} -o $@ $<
 
 parseXML.c: schema2c.xsl schema.xml
 	xsltproc --output $@ --stringparam fileType c $^
@@ -19,14 +19,14 @@ parseXML.c: schema2c.xsl schema.xml
 parseXML.h: schema2c.xsl schema.xml
 	xsltproc --output $@ --stringparam fileType h $^ 
 
-prog: ${OBJS}
-	$(CC) -o ../bin/$@ $^ ${LDFLAGS}
+$(addprefix ${BINDIR},blast2bam) : ${OBJS}
+	$(CC) -o $@ $^ ${LDFLAGS}
 
-fastqParser: fastqParser.o shortRead.o utils.o
-	$(CC) -o ../bin/$@ $^ ${LDFLAGS}
+$(addprefix ${BINDIR},fastqParser): fastqParser.o shortRead.o utils.o
+	$(CC) -o $@ $^ ${LDFLAGS}
 
 clean:
-	rm -f ../bin/prog ../bin/fastqParser ../bin/*.o parseXML.c parseXML.h
+	rm -f $(addprefix ${BINDIR},${EXEC}) *.o parseXML.c parseXML.h
 
 main.o: blastSam.h
 blastSam.o: blastSam.h parseXML.h utils.h shortRead.h

@@ -3,4 +3,6 @@ jeter*
 *~
 tmp*
 *.tmp
-prog
+bin
+src/parseXML.c
+src/parseXML.h

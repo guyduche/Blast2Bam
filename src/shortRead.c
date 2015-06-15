@@ -19,7 +19,7 @@ static char* gzReadLine(gzFile in, size_t* line_len)
 		if (gzeof(in)) return NULL;
 
 		len = strlen(buffer);
-		if (!len) ERROR("Error while reading the new line\n", NULL)
+		if (!len) ERROR("Error while reading the new line\n", NULL);
 		if (buffer[len-1] == '\n')
 		{
 			buffer[len-1] = '\0';
@@ -64,7 +64,7 @@ ShortReadPtr shortReadNext(gzFile in)
 	ptr->qual = gzReadLine(in, &line_len);
 
 	if (line_len != ptr->read_len)
-		ERROR("Wrong quality string length\n", NULL)
+		ERROR("Wrong quality string length\n", NULL);
 
 	return ptr;
 }

@@ -36,6 +36,16 @@ char* _safeStrdup(const char* file, int line, char* s)
 	return str;
 }
 
+
+
+char* _safeStrAppend(const char* file, int line, char* x, const char* y)
+	{
+	size_t len1 = strlen(x);
+	size_t len2 = strlen(y);
+	x = (char*)safeRealloc((void*)x,(len1+len2+1)*sizeof(char));
+	return (char*)memcpy((void*)&x[len1],(void*)y,(len2+1));
+	}
+
 gzFile _safeGzOpen(const char* file, int line, char* filename, char* mode)
 {
 	gzFile fp = gzopen(filename, mode);

@@ -2,19 +2,52 @@
 <xsl:output method="text"/>
 <xsl:param name="fileType"/>
 
+<xsl:variable name="mit2">/*
+The MIT License (MIT)
+
+Copyright (c) 2015
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+History:
+* 2015 creation
+
+*/</xsl:variable>
+
 <xsl:template match="/">
-<xsl:if test="$fileType='h'">
+<xsl:choose>
+<xsl:when test="$fileType='h'">
+<xsl:value-of select="$mit2"/>
 #ifndef PARSEXML_H_INCLUDED
 #define PARSEXML_H_INCLUDED
 
 #include &lt;libxml/xmlreader.h&gt;
-</xsl:if>
-<xsl:if test="$fileType='c'">
+</xsl:when>
+<xsl:when test="$fileType='c'">
+<xsl:value-of select="$mit2"/>
 #include &lt;stdio.h&gt;
 #include &lt;string.h&gt;
 #include &lt;stdlib.h&gt;
 #include "parseXML.h"
 #include "utils.h"
+#include "debug.h"
 
 #define PARSEMACRO(TAG, STRUCT, FIELD, FUNCT) (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*)TAG)) \
 		{ \
@@ -28,7 +61,8 @@
 			} \
 		}
 
-</xsl:if>
+</xsl:when>
+</xsl:choose>
 
 <xsl:apply-templates select="schema"/>
 
@@ -68,14 +102,14 @@ typedef struct <xsl:value-of select="@name"/>
 
 	evt = safeXmlTextReaderRead(reader);
 
-	if (xmlTextReaderNodeType(reader) == 15)
+	if (xmlTextReaderNodeType(reader) == XML_READER_TYPE_END_ELEMENT)
 		end = 1;
 	else
 		evt = safeXmlTextReaderRead(reader);
 
 	while (evt == 1 &amp;&amp; !end)
 	{	
-		if (xmlTextReaderNodeType(reader) == 15)
+		if (xmlTextReaderNodeType(reader) == XML_READER_TYPE_END_ELEMENT)
 			end = 1;
 		<xsl:for-each select="field">
 		else if PARSEMACRO("<xsl:value-of select="@name"/>", p, <xsl:apply-templates select="." mode="cname"/>, <xsl:choose>
@@ -85,10 +119,16 @@ typedef struct <xsl:value-of select="@name"/>
 				<xsl:otherwise>parse<xsl:value-of select="@type"/>(reader)</xsl:otherwise>
 			</xsl:choose>)
 		</xsl:for-each>
+		else
+			{
+			DEBUG("Don't know how to handle blast tag &lt;%s&gt;",
+				(const char*)xmlTextReaderConstName(reader));
+			exit(EXIT_FAILURE);
+			}
 		evt = safeXmlTextReaderRead(reader);
 	}
 
-	if (xmlTextReaderNodeType(reader) != 15)
+	if (xmlTextReaderNodeType(reader) != XML_READER_TYPE_END_ELEMENT)
 		evt = safeXmlTextReaderRead(reader);
 	<xsl:if test="@name!='Iteration'">
 	if (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "<xsl:value-of select="@name"/>"))
