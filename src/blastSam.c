@@ -1,4 +1,31 @@
+/*
+The MIT License (MIT)
 
+Copyright (c) 2015
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+History:
+* 2015 creation
+
+*/
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -8,13 +35,17 @@
 #include "blastSam.h"
 #include "utils.h"
 #include "shortRead.h"
+#include "debug.h"
 
+//TODO : doc+comments
 typedef struct CigarElement
 {
 	int count;
 	char symbol;
 } CigarElement,*CigarElementPtr;
 
+
+//TODO : doc+comments
 typedef struct Cigar
 {
 	CigarElementPtr* elements;
@@ -22,6 +53,7 @@ typedef struct Cigar
 	size_t size; // size of the CIGAR string
 } Cigar, *CigarPtr;
 
+//TODO : doc+comments
 typedef struct SamOutput
 {
 	ShortReadPtr query; // Sequence infos
@@ -30,6 +62,7 @@ typedef struct SamOutput
 	char* rname; // Ref name
 } SamOutput, *SamOutputPtr;
 
+//TODO : doc+comments
 typedef struct RecordSam
 {
 	SamOutputPtr samOut[2]; // 0: first read; 1: mate
@@ -60,7 +93,7 @@ typedef struct RecordVariables // Temp structure used in hitRecord()
 
 
 /* Print SAM header */
-static void sq_line(char* filename)
+static void sq_line(AppParamPtr app,char* filename)
 {
 	FILE* reader;
 	char* str = NULL;
@@ -89,29 +122,29 @@ static void sq_line(char* filename)
 			lenStr++;
 		}
 
-		fwrite(str, sizeof(char), lenStr-1, stdout); // Print the SQ line in the SAM file
+		fwrite(str, sizeof(char), lenStr-1, app->out); // Print the SQ line in the SAM file
 		free(str);
-		if (c != EOF) fprintf(stdout, "\n");
+		if (c != EOF) fprintf(app->out, "\n");
 
 	} while (c != EOF);
 
 	fclose(reader);
 }
 
-static int rg_line(char* readGroup)
+static int rg_line(AppParamPtr app,char* readGroup)
 {	
 	if (strstr(readGroup, "@RG") != readGroup) return 1;
 	if (strstr(readGroup, "\tID:") == NULL) return 1;
-	fprintf(stdout, "%s\n", readGroup);
+	fprintf(app->out, "%s\n", readGroup);
 	return 0;
 }
 
 static int samHead(AppParamPtr app)
 {
-	sq_line(app->db);
+	sq_line(app,app->db);
 	if (app->readGroup != NULL)
-		if (rg_line(app->readGroup) == 1) return 1;
-	fprintf(stdout, "%s\n", app->pg_line);
+		if (rg_line(app,app->readGroup) == 1) return 1;
+	fprintf(app->out, "%s\n", app->pg_line);
 	return 0;
 }
 
@@ -348,6 +381,7 @@ static IterationSamPtr hitRecord(HitPtr hitFirst, HitPtr hitSec, IterationSamPtr
 	return itSam;
 }
 
+/** TODO comment + doc */
 static char* revStr(char* oldStr)
 {
 	size_t i = 0;
@@ -358,24 +392,25 @@ static char* revStr(char* oldStr)
 	{
 		switch(oldStr[l])
 		{
-			case 'A': newStr[i] = 'T'; break;
-			case 'T': newStr[i] = 'A'; break;
-			case 'C': newStr[i] = 'G'; break;
-			case 'G': newStr[i] = 'C'; break;
+			case 'A': case 'a' : newStr[i] = 'T'; break;
+			case 'T': case 't' : newStr[i] = 'A'; break;
+			case 'C': case 'c' : newStr[i] = 'G'; break;
+			case 'G': case 'g' : newStr[i] = 'C'; break;
 			default: newStr[i] = oldStr[l]; break;
 		}
 	}
 	return newStr;
 }
 
-static int firstPosRef(char* rname)
+static int firstPosRef(const char* rname)
 {
-	int i, c = 0;
-	
-	for (i = 0; i < strlen(rname) && c != ':'; i++)
-		c = rname[i];
-
-	return strtol(rname + i, NULL, 10);
+	char* colon = strchr(rname,':');
+	if(colon==NULL) 
+		{
+		DEBUG("Cannot find colon in %s",rname);
+		exit(EXIT_FAILURE);
+		}
+	return strtol(colon + 1, NULL, 10);
 }
 
 // NOTE: for the flag, to substract you can use flag &= ~0x100
@@ -393,6 +428,7 @@ static int firstPosRef(char* rname)
 #define SAM_DUP 0x400			// Optical or PCR duplicate
 #define SAM_SUPPLEMENTARY 0x800	// Supplementary alignment
 
+/** TODO comment + doc */
 static void printSam(IterationSamPtr itSam, AppParamPtr app, char* rgID)
 {
 	int i = 0, j = 0, k = 0, l = 0;
@@ -501,7 +537,15 @@ static void printSam(IterationSamPtr itSam, AppParamPtr app, char* rgID)
 				if (rSam->samOut[k]->hsp == NULL)
 				{
 					flag |= SAM_UNMAP;
-					fprintf(stdout, "%s\t%d\t*\t0\t%d\t*\t%s\t%ld\t0\t%s\t%s", rSam->samOut[k]->query->name, flag, rSam->score, rnext, pos[invk], rSam->samOut[k]->query->seq, rSam->samOut[k]->query->qual);
+					fprintf(app->out, "%s\t%d\t*\t0\t%d\t*\t%s\t%ld\t0\t%s\t%s",
+							rSam->samOut[k]->query->name,
+							flag,
+							rSam->score,
+							rnext,
+							pos[invk],
+							rSam->samOut[k]->query->seq,
+							rSam->samOut[k]->query->qual
+							);
 				}
 				else
 				{
@@ -509,40 +553,41 @@ static void printSam(IterationSamPtr itSam, AppParamPtr app, char* rgID)
 					flag |= (rSam->samOut[k]->hsp->hsp_hit_to - rSam->samOut[k]->hsp->hsp_hit_from < 0 ? SAM_REVERSE : 0);
 					pos[k] = (flag & SAM_REVERSE ? rSam->samOut[k]->hsp->hsp_hit_to : rSam->samOut[k]->hsp->hsp_hit_from);
 					if (app->posOnChr) pos[k] += firstPosRef(rSam->samOut[k]->rname);
-					fprintf(stdout, "%s\t%d\t%s\t%ld\t%d\t", rSam->samOut[k]->query->name, flag, shortName(rSam->samOut[k]->rname), pos[k], rSam->score);
+					fprintf(app->out, "%s\t%d\t%s\t%ld\t%d\t", rSam->samOut[k]->query->name, flag, shortName(rSam->samOut[k]->rname), pos[k], rSam->score);
 					if (flag & SAM_REVERSE)
 					{
 						for (l = rSam->samOut[k]->cigar->size - 1; l >= 0; l--)
-							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar->elements[l]->count, rSam->samOut[k]->cigar->elements[l]->symbol);
+							fprintf(app->out,"%d%c", rSam->samOut[k]->cigar->elements[l]->count, rSam->samOut[k]->cigar->elements[l]->symbol);
 						seq = revStr(rSam->samOut[k]->query->seq);
 					}
 					else
 					{
 						for (l = 0; l < rSam->samOut[k]->cigar->size; l++)
-							fprintf(stdout,"%d%c", rSam->samOut[k]->cigar->elements[l]->count, rSam->samOut[k]->cigar->elements[l]->symbol);
+							fprintf(app->out,"%d%c", rSam->samOut[k]->cigar->elements[l]->count, rSam->samOut[k]->cigar->elements[l]->symbol);
 						seq = rSam->samOut[k]->query->seq;
 					}
-					fprintf(stdout, "\t%s\t%ld\t%d\t%s\t", rnext, pos[invk], tlen, seq);
+					fprintf(app->out, "\t%s\t%ld\t%d\t%s\t", rnext, pos[invk], tlen, seq);
 					if (flag & SAM_REVERSE)
 					{
 						free(seq);
 						for (l = (strlen(rSam->samOut[k]->query->qual) - 1); l >= 0; l--)
-							fprintf(stdout, "%c", rSam->samOut[k]->query->qual[l]);
+							fprintf(app->out, "%c", rSam->samOut[k]->query->qual[l]);
 					}
 					else
-						fprintf(stdout, "%s", rSam->samOut[k]->query->qual);
+						fprintf(app->out, "%s", rSam->samOut[k]->query->qual);
 
-					fprintf(stdout, "\tNM:i:%d", rSam->samOut[k]->cigar->nbDiff);
+					fprintf(app->out, "\tNM:i:%d", rSam->samOut[k]->cigar->nbDiff);
 				}
 				if (rgID != NULL)
-					fprintf(stdout, "\tRG:Z:%s", rgID);
-				fprintf(stdout, "\n");
+					fprintf(app->out, "\tRG:Z:%s", rgID);
+				fprintf(app->out, "\n");
 			}
 		}
 		countUnprint = 0;
 	}
 }
 
+/** TODO comment + doc */
 static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFile fp2, AppParamPtr app, char* rgID)
 {
 	IterationSamPtr itSam = NULL;
@@ -616,6 +661,7 @@ static void deallocItSam(IterationSamPtr itSam)
 	free(itSam);
 }
 
+/** TODO comment + doc */
 int blastToSam(AppParamPtr app)
 {
 	xmlTextReaderPtr reader;
@@ -630,14 +676,14 @@ int blastToSam(AppParamPtr app)
 	safeXmlTextReaderRead(reader);
 
 	if (xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "BlastOutput"))
-		ERROR("The document is not a Blast output\n", 1)
+		ERROR("The document is not a Blast output\n", 1);
 
 	safeXmlTextReaderRead(reader);
 
 	blastOP = parseBlastOutput(reader);
 
 	if (samHead(app) == 1)
-		ERROR("Error while printing the Sam header\n", 1)
+		ERROR("Error while printing the Sam header\n", 1);
 
 	fp = safeGzOpen(app->fastq1, "r");
 

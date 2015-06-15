@@ -14,13 +14,13 @@ bam_idx: results.bam
 
 results.xml.gz: results.bam
 
-results.bam: ../bin/prog ../bin/fastqParser db.dict ${FASTQ} $(addsuffix .nin,${DB})
+results.bam: ../bin/blast2bam ../bin/fastqParser db.dict ${FASTQ} $(addsuffix .nin,${DB})
 	../bin/fastqParser ${FASTQ} | ${Blast} -db ${DB} -num_threads 4 -word_size 8 -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
-	tee results.xml | ../bin/prog -W 40 -z -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} | \
+	tee results.xml | ../bin/blast2bam -W 40 -z -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} | \
 	samtools view -Sub - | samtools sort - $(basename $@) > $@
 	gzip --best -f results.xml
 
-../bin/prog ../bin/fastqParser:
+../bin/blast2bam ../bin/fastqParser:
 	(cd ../src; ${MAKE})
 
 db.dict: ${DB}
