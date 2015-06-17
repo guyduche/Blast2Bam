@@ -31,25 +31,25 @@ History:
 #include <stdlib.h>
 #include "utils.h"
 
-void* _safeMalloc(const char* file, int line, size_t n)
+void* _safeMalloc(const char* file, int line, size_t size)
 {
-	void* p = malloc(n);
+	void* p = malloc(size);
 	if (p == NULL)
 		fprintf(stderr, "Failed memory allocation in %s at line %d\n", file, line);
 	return p;
 }
 
-void* _safeCalloc(const char* file, int line, size_t m, size_t n)
+void* _safeCalloc(const char* file, int line, size_t number, size_t size)
 {
-	void* p = calloc(m, n);
+	void* p = calloc(number, size);
 	if (p == NULL)
 		fprintf(stderr, "Failed memory allocation in %s at line %d\n", file, line);
 	return p;
 }
 
-void* _safeRealloc(const char* file, int line, void* ptr, size_t n)
+void* _safeRealloc(const char* file, int line, void* ptr, size_t size)
 {
-	void* p = realloc(ptr, n);
+	void* p = realloc(ptr, size);
 	if (p == NULL)
 		fprintf(stderr, "Failed memory allocation in %s at line %d\n", file, line);
 	return p;

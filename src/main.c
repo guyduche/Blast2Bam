@@ -115,6 +115,8 @@ int main(int argc, char** argv)
 
 	ret = blastToSam(app);
 	if (out != NULL) fclose(out);
+	if (app->readGroupID != NULL)
+		free(app->readGroupID);
 	free(app->pg_line);
 	free(app);
 	return ret;

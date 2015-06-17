@@ -5,7 +5,7 @@ CFLAGS = -c -O3 -Wall `xml2-config --cflags`
 LDFLAGS = -lz `xml2-config --libs`
 BINDIR = ../bin/
 EXEC = blast2bam fastqParser
-OBJS = $(addsuffix .o, parseXML blastSam shortRead utils main)
+OBJS = $(addsuffix .o, parseXML blastSam printSam shortRead utils main)
 
 all: ${BINDIR} $(addprefix ${BINDIR}, ${EXEC})
 
@@ -31,8 +31,9 @@ clean:
 	rm -f $(addprefix ${BINDIR}, ${EXEC}) *.o parseXML.c parseXML.h
 
 main.o: blastSam.h
-blastSam.o: blastSam.h parseXML.h utils.h shortRead.h
+blastSam.o: blastSam.h parseXML.h utils.h shortRead.h debug.h
 parseXML.o: parseXML.h utils.h
 shortRead.o: shortRead.h utils.h
 utils.o: utils.h
 fastqParser.o: shortRead.h utils.h
+printSam.o: blastSam.h utils.h

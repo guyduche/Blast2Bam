@@ -39,20 +39,20 @@ History:
 		return ENDING;} while(0)
 
 
-#define safeMalloc(n) _safeMalloc(__FILE__, __LINE__, n)
-#define safeCalloc(m, n) _safeCalloc(__FILE__, __LINE__, m, n)
-#define safeRealloc(ptr, n) _safeRealloc(__FILE__,__LINE__, ptr, n)
+#define safeMalloc(size) _safeMalloc(__FILE__, __LINE__, size)
+#define safeCalloc(number, size) _safeCalloc(__FILE__, __LINE__, number, size)
+#define safeRealloc(ptr, size) _safeRealloc(__FILE__,__LINE__, ptr, size)
 #define safeStrdup(s) _safeStrdup(__FILE__, __LINE__, s)
-#define safeStrAppend(x,y) _safeStrAppend(__FILE__, __LINE__, x,y)
+#define safeStrAppend(x,y) _safeStrAppend(__FILE__, __LINE__, x, y)
 #define safeGzOpen(filename, mode) _safeGzOpen(__FILE__, __LINE__, filename, mode)
 #define safeFOpen(filename, mode) _safeFOpen(__FILE__, __LINE__, filename, mode)
 #define safeXmlNewTextReaderFilename(filename) _safeXmlNewTextReaderFilename(__FILE__, __LINE__, filename)
 #define safeXmlTextReaderRead(fp) _safeXmlTextReaderRead (__FILE__, __LINE__, fp)
 
 
-void* _safeMalloc(const char* file, int line, size_t n);
-void* _safeCalloc(const char* file, int line, size_t m, size_t n);
-void* _safeRealloc(const char* file, int line, void* ptr, size_t n);
+void* _safeMalloc(const char* file, int line, size_t size);
+void* _safeCalloc(const char* file, int line, size_t number, size_t size);
+void* _safeRealloc(const char* file, int line, void* ptr, size_t size);
 char* _safeStrdup(const char* file, int line, char* s);
 char* _safeStrAppend(const char* file, int line, char* x, const char* y);
 gzFile _safeGzOpen(const char* file, int line, char* filename, char* mode);
