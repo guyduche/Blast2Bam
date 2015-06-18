@@ -33,17 +33,16 @@ History:
 #include "blastSam.h"
 
 /************************************************************************************/
-/*	TODO	*/
+/*	Print SAM header																*/
 /************************************************************************************/
-/* Print SAM header */
-static void sq_line(AppParamPtr app, char* filename)
+static void sq_line(AppParamPtr app, char* filename) // Print the reference sequence dictionary (SQ lines)
 {
 	FILE* reader;
 	char* str = NULL;
 	int c, countSpace = 0;
 	size_t lenStr = 0;
 
-	reader = safeFOpen(filename, "r");
+	reader = safeFOpen(filename, "r"); // Open the reference dictionary file (.dict)
 
 	do
 	{
@@ -69,25 +68,25 @@ static void sq_line(AppParamPtr app, char* filename)
 		free(str);
 		if (c != EOF) fputc('\n', app->out);
 
-	} while (c != EOF);
+	} while (c != EOF); // If there are more than one reference
 
 	fclose(reader);
 }
 
 static int rg_line(AppParamPtr app, char* readGroup)
 {	
-	if (strstr(readGroup, "@RG") != readGroup) return 1;
-	if (strstr(readGroup, "\tID:") == NULL) return 1;
-	fprintf(app->out, "%s\n", readGroup);
+	if (strstr(readGroup, "@RG") != readGroup) return 1; // Verify that the read group begins with @RG
+	if (strstr(readGroup, "\tID:") == NULL) return 1; // Verify that the read group has an ID
+	fprintf(app->out, "%s\n", readGroup); // Print the read group in the SAM header
 	return 0;
 }
 
-int samHead(AppParamPtr app)
+int samHead(AppParamPtr app) // Print SAM header section
 {
-	sq_line(app,app->db);
-	if (app->readGroup != NULL)
-		if (rg_line(app,app->readGroup) == 1) return 1;
-	fprintf(app->out, "%s\n", app->pg_line);
+	sq_line(app, app->db); // Print the SQ Line
+	if (app->readGroup != NULL) // If the read group is available and is correctly formatted, prints it
+		if (rg_line(app,app->readGroup) == 1) return 1; // if the read group is incorrectly formatted, returns an error
+	fprintf(app->out, "%s\n", app->pg_line); // Print the PG line
 	return 0;
 }
 
@@ -117,17 +116,17 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 	if (hsp->hsp_query_from > 1) // 5' Soft clipping
 	{
 		cigar->size++;
-		cigar->elements = (CigarElementPtr*) safeCalloc(cigar->size, sizeof(CigarElementPtr));
-		cigar->elements[0] = (CigarElementPtr) safeCalloc(1, sizeof(CigarElement));
-		cigar->elements[0]->count = hsp->hsp_query_from - 1;
+		cigar->elements = (CigarElementPtr*) safeCalloc(cigar->size, sizeof(CigarElementPtr)); // Create an array of elements for the CIGAR string
+		cigar->elements[0] = (CigarElementPtr) safeCalloc(1, sizeof(CigarElement)); // Create the first element of the array
+		cigar->elements[0]->count = hsp->hsp_query_from - 1; // Count = first alignment position in the query sequence - 1
 		cigar->elements[0]->symbol = 'S';
 	}
 
 	for (pos = 0; pos < (hsp->hsp_align_len); pos++)
 	{
 		cigar->size++;
-		cigar->elements = (CigarElementPtr*) safeRealloc(cigar->elements, cigar->size * sizeof(CigarElementPtr));
-		cigar->elements[cigar->size-1] = (CigarElementPtr) safeCalloc(1, sizeof(CigarElement));
+		cigar->elements = (CigarElementPtr*) safeRealloc(cigar->elements, cigar->size * sizeof(CigarElementPtr)); // Create or append the array of elements of the CIGAR string
+		cigar->elements[cigar->size-1] = (CigarElementPtr) safeCalloc(1, sizeof(CigarElement)); // Create a new element
 
 		if (hsp->hsp_hseq[pos] == '-')
 			CSTRMACRO('I', (hsp->hsp_hseq[pos] == '-')) // Count the number of insertions
@@ -153,7 +152,7 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 		cigar->size++;
 		cigar->elements = (CigarElementPtr*) safeRealloc(cigar->elements, cigar->size * sizeof(CigarElementPtr));
 		cigar->elements[cigar->size-1] = (CigarElementPtr) safeCalloc(1, sizeof(CigarElement));
-		cigar->elements[cigar->size-1]->count = queryLength - hsp->hsp_query_to;
+		cigar->elements[cigar->size-1]->count = queryLength - hsp->hsp_query_to; // Count = length of the read - position of the last aligned base on the query sequence 
 		cigar->elements[cigar->size-1]->symbol = 'S';
 	}
 
@@ -162,7 +161,7 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 
 
 /************************************************************************************/
-/*	TODO	*/
+/*	Get the reverse complement of a sequence										*/
 /************************************************************************************/
 static char* revStr(char* oldStr)
 {
@@ -172,7 +171,7 @@ static char* revStr(char* oldStr)
 
 	for (--l; l >= 0; l--, i++)
 	{
-		switch(oldStr[l])
+		switch (oldStr[l])
 		{
 			case 'A': case 'a' : newStr[i] = 'T'; break;
 			case 'T': case 't' : newStr[i] = 'A'; break;
@@ -184,6 +183,10 @@ static char* revStr(char* oldStr)
 	return newStr;
 }
 
+
+/************************************************************************************/
+/*	Extract the position in the reference name, if any								*/
+/************************************************************************************/
 static int firstPosRef(const char* rname)
 {
 	char* colon = strchr(rname, ':');
@@ -193,7 +196,7 @@ static int firstPosRef(const char* rname)
 }
 
 /************************************************************************************/
-/*	TODO	*/
+/*	Print SAM alignment section														*/
 /************************************************************************************/
 #define SAM_PAIRED 0x1			// Paired end
 #define SAM_PROPER_PAIR 0x2		// Read mapped in a proper pair
@@ -208,6 +211,7 @@ static int firstPosRef(const char* rname)
 #define SAM_DUP 0x400			// Optical or PCR duplicate
 #define SAM_SUPPLEMENTARY 0x800	// Supplementary alignment
 
+// Function to filter the results according to option -W
 static int allowedToPrint(SamOutputPtr* samOut, int minLen, int countRec, int countHSPsec, int* countUnprint)
 {
 	if (samOut[0]->hsp != NULL && samOut[0]->hsp->hsp_align_len > minLen)
@@ -244,6 +248,7 @@ static int allowedToPrint(SamOutputPtr* samOut, int minLen, int countRec, int co
 	return 1;
 }
 
+// Print the CIGAR str straight or reverse depending on the flag
 static void printCigarStr (AppParamPtr app, CigarElementPtr* cigElements, size_t size, int flag)
 {
 	int i = 0;
@@ -264,21 +269,23 @@ static void printCigarStr (AppParamPtr app, CigarElementPtr* cigElements, size_t
 	free(cigElements);
 }
 
+// Structure that contains the infos of one line of SAM alignment section
 typedef struct SamLine
 {
-	char* readName;
-	char* refName;
-	char* rnext;
-	char* seq;
-	char* qual;
-	int flag;
-	int pos;
-	int mapq;
-	int pnext;
-	int tlen;
-	CigarPtr cigarStr;
+	char* readName;		// Col 1
+	char* refName;		// Col 3
+	char* rnext;		// Col 7
+	char* seq;			// Col 10
+	char* qual;			// Col 11
+	int flag;			// Col 2
+	int pos;			// Col 4
+	int mapq;			// Col 5
+	int pnext;			// Col 8
+	int tlen;			// Col 9
+	CigarPtr cigarStr;	// Col 6
 } SamLine, *SamLinePtr;
 
+// Print one line of the SAM alignment section
 static void printSamLine (AppParamPtr app, SamLinePtr samLine)
 {
 	int i = 0;
@@ -328,13 +335,13 @@ static void printSamLine (AppParamPtr app, SamLinePtr samLine)
 	fputc('\n', app->out);
 }
 
-
+// Print the alignment section
 void printSam(IterationSamPtr itSam, AppParamPtr app)
 {
 	int i = 0, j = 0, k = 0;
 	int invk = 0, len0 = 0, len1 = 0, doNotPrint = 0, countUnprint = 0;
-	SamOutputPtr samOut[2];
-	SamLinePtr samLine;
+	SamOutputPtr samOut[2] = {NULL, NULL};
+	SamLinePtr samLine = NULL;
 
 	for (i = 0; i < itSam->countHit; i++)
 	{

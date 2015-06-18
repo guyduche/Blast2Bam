@@ -76,7 +76,6 @@ typedef struct SamOutput
 {
 	ShortReadPtr query; // Read infos from the fastQ (name, seq and qual)
 	HspPtr hsp; // Alignment infos from Blast
-	CigarPtr cigar; // CIGAR string
 	char* rname; // Name of the reference on which the read is mapped
 } SamOutput, *SamOutputPtr;
 
@@ -84,7 +83,6 @@ typedef struct SamOutput
 typedef struct RecordSam
 {
 	SamOutputPtr samOut[2]; // Array containing the reads and their alignment infos. 0: first in pair; 1: second in pair
-	unsigned int score; // Mapping quality
 } RecordSam, *RecordSamPtr;
 
 // Sub-unit of IterationSam : contains the alignments for a single reference
