@@ -187,7 +187,7 @@ static char* revStr(char* oldStr)
 static int firstPosRef(const char* rname)
 {
 	char* colon = strchr(rname, ':');
-	if(colon == NULL) 
+	if (colon == NULL) 
 		return 0;
 	return strtol(colon + 1, NULL, 10);
 }
@@ -248,21 +248,19 @@ static void printCigarStr (AppParamPtr app, CigarElementPtr* cigElements, size_t
 {
 	int i = 0;
 	if (flag & SAM_REVERSE)
-	{
 		for (i = size - 1; i >= 0; i--)
 		{
 			fprintf(app->out, "%d%c", cigElements[i]->count, cigElements[i]->symbol);
 			free(cigElements[i]);
 		}
-	}
+
 	else
-	{
 		for (i = 0; i < size; i++)
 		{
 			fprintf(app->out, "%d%c", cigElements[i]->count, cigElements[i]->symbol);
 			free(cigElements[i]);
 		}
-	}
+
 	free(cigElements);
 }
 
@@ -330,7 +328,7 @@ static void printSamLine (AppParamPtr app, SamLinePtr samLine)
 	fputc('\n', app->out);
 }
 
-// TODO: CigarStrBuilding in printSam and not in hitRecord() => build cigarStr only when necessary
+
 void printSam(IterationSamPtr itSam, AppParamPtr app)
 {
 	int i = 0, j = 0, k = 0;
@@ -353,7 +351,7 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
 				if (app->minLen != 0 && !k)
 					if (!allowedToPrint(samOut, app->minLen, itSam->samHits[i]->countRec, itSam->samHits[i]->countHSPsec, &countUnprint))
 						{doNotPrint = 1; continue;}
-			
+				
 				samLine = (SamLinePtr) safeCalloc(1, sizeof(SamLine));
 				
 				if (samOut[invk] != NULL) // Paired end
@@ -370,6 +368,7 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
 							samLine->tlen = samOut[invk]->hsp->hsp_hit_from - samOut[k]->hsp->hsp_hit_from;
 							if (samLine->tlen)
 								samLine->tlen += (samLine->tlen > 0 ? 1 : -1);
+							
 							len0 = abs(samOut[k]->hsp->hsp_hit_to - samOut[k]->hsp->hsp_hit_from) + 1;
 							len1 = abs(samOut[invk]->hsp->hsp_hit_to - samOut[invk]->hsp->hsp_hit_from) + 1;
 							if (abs(samLine->tlen) > 3 * (len0 >= len1 ? len0 : len1) || abs(samLine->tlen) < (len0 >= len1 ? len1 : len0))
@@ -408,7 +407,8 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
 					samLine->pnext = 0;
 				}
 
-				samLine->readName = samOut[k]->query->seq;
+				samLine->readName = samOut[k]->query->name;
+				samLine->seq = samOut[k]->query->seq;
 				samLine->qual = samOut[k]->query->qual;
 				
 				if (samOut[k]->hsp != NULL)
