@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2015 Aurelien Guy-Duche
+Copyright (c) 2015 Aurelien Guy-Duche and Pierre Lindenbaum
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -32,11 +32,19 @@ History:
 #include <stdio.h>
 #include <libxml/xmlreader.h>
 #include <zlib.h>
-#include "debug.h"
 
-#define ERROR(MESSAGE, ENDING) do { \
-		DEBUG("%s", MESSAGE); \
-		return ENDING;} while(0)
+#define DEBUG(FORMAT, ARGS...) \
+	do { \
+	fprintf(stderr, "[%s:%d]:", __FILE__, __LINE__); \
+	fprintf(stderr, FORMAT, ARGS); \
+	fputc('\n', stderr); \
+	} while(0)
+
+#define ERROR(MESSAGE, ENDING) \
+	do { \
+	DEBUG("%s", MESSAGE); \
+	return ENDING; \
+	} while(0)
 
 
 #define safeMalloc(size) _safeMalloc(__FILE__, __LINE__, size)

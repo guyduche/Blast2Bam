@@ -12,7 +12,7 @@ make
 # Usage
 
 ```bash
-	bin/fastqParser fastq1.gz [fastq2.gz] | \
+	bin/fastq2fasta fastq1.gz [fastq2.gz] | \
 	blastn [options] -db ref.fa -outfmt 5 | \
 	bin/blast2bam [options] - ref.dict fastq1.gz [fastq2.gz] > out.sam
 ```
@@ -20,7 +20,7 @@ make
 # Example
 
 ```bash
-	bin/fastqParser ${FASTQ} |\
+	bin/fastq2fasta ${FASTQ} |\
 	blastn -db ${DB} -num_threads 4 -word_size 8 -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
 	bin/blast2bam -W 40 -z -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} | \
 	samtools view -Sub - | samtools sort - out > out.bam

@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2015 Aurelien Guy-Duche
+Copyright (c) 2015 Aurelien Guy-Duche and Pierre Lindenbaum
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,6 @@ History:
 * 2015 creation
 
 */
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "utils.h"

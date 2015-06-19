@@ -15,8 +15,8 @@ bam_idx: results.bam
 
 results.xml.gz: results.bam
 
-results.bam: $(addprefix ${BINDIR}, blast2bam fastqParser) db.dict ${FASTQ} $(addsuffix .nin, ${DB})
-	$(addprefix ${BINDIR}, fastqParser) ${FASTQ} | ${BLAST} -db ${DB} -num_threads 4 -word_size 8 -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
+results.bam: $(addprefix ${BINDIR}, blast2bam fastq2fasta) db.dict ${FASTQ} $(addsuffix .nin, ${DB})
+	$(addprefix ${BINDIR}, fastq2fasta) ${FASTQ} | ${BLAST} -db ${DB} -num_threads 4 -word_size 8 -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
 	tee results.xml | $(addprefix ${BINDIR}, blast2bam) -W 40 -z -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} | \
 	samtools view -Sub - | samtools sort - $(basename $@) > $@
 	gzip --best -f results.xml

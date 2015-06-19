@@ -26,8 +26,6 @@ History:
 * 2015 creation
 
 */
-#include <stdio.h>
-#include <stdlib.h>
 #include <getopt.h>
 #include <string.h>
 #include "blastSam.h"
@@ -75,7 +73,7 @@ int main(int argc, char** argv)
 	{
 		switch (c)
 		{
-			case 'o': app->out = out = safeFOpen(optarg, "w"); break;
+			case 'o': app->out = out = safeFOpen(optarg, "a"); break;
 			case 'p': app->inter = 1; break;
 			case 'R': app->readGroup = optarg; break;
 			case 'W': app->minLen = (int) strtol(optarg, NULL, 10); break;

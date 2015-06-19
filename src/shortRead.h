@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2015 Aurelien Guy-Duche
+Copyright (c) 2015 Pierre Lindenbaum and Aurelien Guy-Duche
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,14 +31,19 @@ History:
 
 #include <zlib.h>
 
+// Read infos extracted from the fastQ
 typedef struct ShortRead
 {
-	char* name;
-	char* seq;
-	char* qual;
-	size_t read_len;
+	char* name;			// Read name
+	char* seq;			// Read sequence
+	char* qual;			// Read quality
+	size_t read_len;	// Read length
 } ShortRead, *ShortReadPtr;
 
+
+/************************************************************************************/
+/*	Prototypes																		*/
+/************************************************************************************/
 ShortReadPtr shortReadNext(gzFile in);
 void shortReadFree(ShortReadPtr ptr);
 

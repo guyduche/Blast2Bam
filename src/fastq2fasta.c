@@ -26,16 +26,42 @@ History:
 * 2015 creation
 
 */
-#ifndef DEBUG_H
-#define DEBUG_H
-#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include "utils.h"
+#include "shortRead.h"
 
-#define DEBUG(FORMAT, ARGS...) \
-	do {\
-	fprintf(stderr, "[%s:%d]:", __FILE__, __LINE__); \
-	fprintf(stderr, FORMAT, ARGS);\
-	fputc('\n', stderr);\
-	} while(0)
+// TODO print usage & help
 
-#endif
+int main(int argc, char** argv)
+{
+	gzFile fp = NULL, fp2 = NULL;
+	ShortReadPtr reads[2];
 
+	fp = safeGzOpen(argv[1], "r");
+
+	if (argc == 3)
+		fp2 = safeGzOpen(argv[2], "r");
+
+	reads[0] = shortReadNext(fp);
+	while (reads[0] != NULL)
+	{
+		if (fp2 != NULL)
+			reads[1] = shortReadNext(fp2);
+		
+		fprintf(stdout, ">%s\n%s\n", reads[0]->name, reads[0]->seq);
+		if (fp2 != NULL)
+		{
+			fprintf(stdout, ">%s\n%s\n", reads[1]->name, reads[1]->seq);
+			shortReadFree(reads[1]);
+		}
+		shortReadFree(reads[0]);
+		reads[0] = shortReadNext(fp);
+	}
+
+	gzclose(fp);
+	if (fp2 != NULL)
+		gzclose(fp2);
+
+	return 0;
+}

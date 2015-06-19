@@ -42,17 +42,15 @@ History:
 </xsl:when>
 <xsl:when test="$fileType='c'">
 <xsl:value-of select="$mit2"/>
-#include &lt;stdio.h&gt;
 #include &lt;string.h&gt;
 #include &lt;stdlib.h&gt;
 #include "parseXML.h"
 #include "utils.h"
-#include "debug.h"
 
 #define PARSEMACRO(TAG, STRUCT, FIELD, FUNCT) (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*)TAG)) \
 		{ \
 			if (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*)"blastOutput_iterations")) \
-				end = 1; \
+				end = 1; /* Useful to stop parseBlastOutput() before the first iteration of results */ \
 			else \
 			{ \
 				evt = safeXmlTextReaderRead(reader); \

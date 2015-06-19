@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2015 Aurelien Guy-Duche
+Copyright (c) 2015 Pierre Lindenbaum and Aurelien Guy-Duche
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,24 +26,26 @@ History:
 * 2015 creation
 
 */
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "utils.h"
 #include "shortRead.h"
 
+/************************************************************************************/
+/*	FastQ parsing																	*/
+/************************************************************************************/
+// Get one line of the file
 static char* gzReadLine(gzFile in, size_t* line_len)
 {
 	size_t len = 0;
 	int endsWithCR = 0;
-	char* buffer = NULL;
-	char* line = NULL;
+	char* buffer = NULL, *line = NULL;
 	*line_len = 0;
 
-	while (!endsWithCR)
-	{
+	while (!endsWithCR) // Until a '\n' is found
+	{ // Useful in case BUFSIZ is too small to get the whole line
 		buffer = (char*) safeMalloc(BUFSIZ);
-		if (gzgets(in, buffer, BUFSIZ) == NULL) return NULL; // Warning verify end of string
+		if (gzgets(in, buffer, BUFSIZ) == NULL) return NULL; 
 		if (gzeof(in)) return NULL;
 
 		len = strlen(buffer);
@@ -55,7 +57,7 @@ static char* gzReadLine(gzFile in, size_t* line_len)
 		}
 
 		line = (char*) safeRealloc(line, *line_len + len + 1);
-		if (*line_len == 0) *line = '\0';
+		if (*line_len == 0) *line = '\0'; // Initialize line to enable the use of strncat
 		strncat(line, buffer, len);
 
 		*line_len += len;
@@ -65,15 +67,7 @@ static char* gzReadLine(gzFile in, size_t* line_len)
 	return line;
 }
 
-void shortReadFree(ShortReadPtr ptr)
-{
-	if (ptr == NULL) return;
-	free(ptr->name - 1);
-	free(ptr->seq);
-	free(ptr->qual);
-	free(ptr);
-}
-
+// Get the infos of one read
 ShortReadPtr shortReadNext(gzFile in)
 {
 	size_t line_len = 0;
@@ -81,19 +75,31 @@ ShortReadPtr shortReadNext(gzFile in)
 
 	ptr = (ShortReadPtr) safeCalloc(1, sizeof(ShortRead));
 
-	ptr->name = gzReadLine(in, &line_len);
+	ptr->name = gzReadLine(in, &line_len);			// Get the read name
 	if (ptr->name == NULL)
 		return NULL;
 	else
-		ptr->name = shortName(ptr->name + 1);
-	ptr->seq = gzReadLine(in, &line_len);
+		ptr->name = shortName(ptr->name + 1);		// Put the short version of the read name in the ShortRead structure
+	ptr->seq = gzReadLine(in, &line_len);			// Get the sequence
 	ptr->read_len = line_len;
-	free(gzReadLine(in, &line_len)); // Discard the 3rd line
-	ptr->qual = gzReadLine(in, &line_len);
+	free(gzReadLine(in, &line_len));				// Discard the third line (+)
+	ptr->qual = gzReadLine(in, &line_len);			// Get the sequence quality
 
-	if (line_len != ptr->read_len)
+	if (line_len != ptr->read_len)					// Seq and qual should have the same length
 		ERROR("Wrong quality string length\n", NULL);
 
 	return ptr;
+}
+
+/************************************************************************************/
+/*	Deallocation of the shortRead structure											*/
+/************************************************************************************/
+void shortReadFree(ShortReadPtr ptr)
+{
+	if (ptr == NULL) return;
+	free(ptr->name - 1);
+	free(ptr->seq);
+	free(ptr->qual);
+	free(ptr);
 }
 
