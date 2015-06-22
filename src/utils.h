@@ -33,20 +33,27 @@ History:
 #include <libxml/xmlreader.h>
 #include <zlib.h>
 
+
+/************************************************************************************/
+/*  Error macros                                                                    */
+/************************************************************************************/
 #define DEBUG(FORMAT, ARGS...) \
-	do { \
-	fprintf(stderr, "[%s:%d]:", __FILE__, __LINE__); \
-	fprintf(stderr, FORMAT, ARGS); \
-	fputc('\n', stderr); \
-	} while(0)
+    do { \
+    fprintf(stderr, "[%s:%d]:", __FILE__, __LINE__); \
+    fprintf(stderr, FORMAT, ARGS); \
+    fputc('\n', stderr); \
+    } while(0)
 
 #define ERROR(MESSAGE, ENDING) \
-	do { \
-	DEBUG("%s", MESSAGE); \
-	return ENDING; \
-	} while(0)
+    do { \
+    DEBUG("%s", MESSAGE); \
+    return ENDING; \
+    } while(0)
 
 
+/************************************************************************************/
+/*  Safe memory allocation macros                                                   */
+/************************************************************************************/
 #define safeMalloc(size) _safeMalloc(__FILE__, __LINE__, size)
 #define safeCalloc(number, size) _safeCalloc(__FILE__, __LINE__, number, size)
 #define safeRealloc(ptr, size) _safeRealloc(__FILE__,__LINE__, ptr, size)
@@ -58,6 +65,9 @@ History:
 #define safeXmlTextReaderRead(fp) _safeXmlTextReaderRead (__FILE__, __LINE__, fp)
 
 
+/************************************************************************************/
+/*  Prototypes                                                                      */
+/************************************************************************************/
 void* _safeMalloc(const char* file, int line, size_t size);
 void* _safeCalloc(const char* file, int line, size_t number, size_t size);
 void* _safeRealloc(const char* file, int line, void* ptr, size_t size);

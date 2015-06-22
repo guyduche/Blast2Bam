@@ -6,24 +6,33 @@ Map sequences with NCBI blastn and output the results in SAM/BAM format.
 # Compilation
 
 ```
-make
+$ make
 ```
 
 # Usage
 
+### Fastq2fasta
+
 ```bash
-	bin/fastq2fasta fastq1.gz [fastq2.gz] | \
-	blastn [options] -db ref.fa -outfmt 5 | \
-	bin/blast2bam [options] - ref.dict fastq1.gz [fastq2.gz] > out.sam
+$ bin/fastq2fasta [options] FastQ_1 [FastQ_2] > out.fasta
 ```
+
+### Blast2bam
+
+```bash
+$ bin/blast2bam [options] blast.xml ref.dict FastQ_1 [FastQ_2] > out.sam
+```
+
+# Options
+
+### Fastq2fasta
+
+### Blast2bam
 
 # Example
 
 ```bash
-	bin/fastq2fasta ${FASTQ} |\
-	blastn -db ${DB} -num_threads 4 -word_size 8 -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
-	bin/blast2bam -W 40 -z -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} | \
-	samtools view -Sub - | samtools sort - out > out.bam
+
 ```
 
 # Authors

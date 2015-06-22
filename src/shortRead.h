@@ -34,15 +34,15 @@ History:
 // Read infos extracted from the fastQ
 typedef struct ShortRead
 {
-	char* name;			// Read name
-	char* seq;			// Read sequence
-	char* qual;			// Read quality
-	size_t read_len;	// Read length
+    char* name;         // Read name
+    char* seq;          // Read sequence
+    char* qual;         // Read quality
+    size_t read_len;    // Read length
 } ShortRead, *ShortReadPtr;
 
 
 /************************************************************************************/
-/*	Prototypes																		*/
+/*  Prototypes                                                                      */
 /************************************************************************************/
 ShortReadPtr shortReadNext(gzFile in);
 void shortReadFree(ShortReadPtr ptr);

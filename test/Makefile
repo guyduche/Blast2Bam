@@ -21,7 +21,7 @@ results.bam: $(addprefix ${BINDIR}, blast2bam fastq2fasta) db.dict ${FASTQ} $(ad
 	samtools view -Sub - | samtools sort - $(basename $@) > $@
 	gzip --best -f results.xml
 
-$(addprefix ${BINDIR}, blast2bam fastqParser):
+$(addprefix ${BINDIR}, blast2bam fastq2fasta):
 	(cd ../src; ${MAKE})
 
 db.dict: ${DB}

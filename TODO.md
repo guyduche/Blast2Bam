@@ -8,6 +8,4 @@ chimeric alignments
 
 metadata
 
-continue with the comments
-
-usage of both programs
+readme
