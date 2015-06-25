@@ -80,8 +80,8 @@ static IterationSamPtr hitRecord(
     // Only if paired end
     if (hitSec != NULL)
     {
-        samOut[1] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput));        // Create a structure to capture all the info concerning the second read
-        samOut[1]->query = rVar->reads[1];                                  // Record the second read infos
+        samOut[1] = itSam->samHits[countHit-1]->rsSam[countRec-1]->samOut[1] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the second read
+        samOut[1]->query = rVar->reads[1];                                                                                      // Record the second read infos
     }
 
     // Go there if the first read is unmapped

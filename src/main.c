@@ -37,7 +37,7 @@ static void usage(FILE* out)
     fprintf(out, "Usage: blast2bam [options] <Blast XML output> <reference sequence dictionary> <FastQ_1> [FastQ_2]\n\n");
     fprintf(out, "Options:\n");
     fprintf(out, " --output         | -o FILE       Output file (default: stdout)\n");
-    fprintf(out, " --interleaved    | -p            Interleaved output\n");
+    fprintf(out, " --interleaved    | -p            Interleaved data\n");
     fprintf(out, " --readGroup      | -R STR        Read group header line '@RG\\tID:foo'\n");
     fprintf(out, " --minAlignLength | -W INT        Discard alignments shorter than [INT]\n");
     fprintf(out, " --posOnChr       | -z            Adjust the alignment position to the first position of the reference\n");
