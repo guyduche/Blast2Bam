@@ -6,6 +6,3 @@ then create a pipe to get the xml out of blast line by line
 fun with flags (supplementary)
 chimeric alignments
 
-metadata
-
-readme

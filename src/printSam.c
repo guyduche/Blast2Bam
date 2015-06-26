@@ -279,17 +279,20 @@ static void printCigarStr (AppParamPtr app, CigarElementPtr* cigElements, size_t
 // Structure that contains the infos of one line of SAM alignment section
 typedef struct SamLine
 {
-    char* readName;     // Col 1    Field QNAME
-    char* refName;      // Col 3    Field RNAME
-    char* rnext;        // Col 7    Field RNEXT
-    char* seq;          // Col 10   Field SEQ
-    char* qual;         // Col 11   Field QUAL
-    int flag;           // Col 2    Field FLAG
-    int pos;            // Col 4    Field POS
-    int mapq;           // Col 5    Field MAPQ
-    int pnext;          // Col 8    Field PNEXT
-    int tlen;           // Col 9    Field TLEN
-    CigarPtr cigarStr;  // Col 6    Field CIGAR
+    char* readName;         // Col 1    QNAME
+    char* refName;          // Col 3    RNAME
+    char* rnext;            // Col 7    RNEXT
+    char* seq;              // Col 10   SEQ
+    char* qual;             // Col 11   QUAL
+    int flag;               // Col 2    FLAG
+    int pos;                // Col 4    POS
+    int mapq;               // Col 5    MAPQ
+    int pnext;              // Col 8    PNEXT
+    int tlen;               // Col 9    TLEN
+    int blastScore;         // Col 12   Metadata AS
+    double blastBitScore;   // Col 12   Metadata XB
+    double blastEvalue;     // Col 12   Metadata XE
+    CigarPtr cigarStr;      // Col 6    CIGAR
 } SamLine, *SamLinePtr;
 
 // Print one line of the SAM alignment section
@@ -339,6 +342,9 @@ static void printSamLine (AppParamPtr app, SamLinePtr samLine)
     if (app->readGroupID != NULL)
         fprintf(app->out, "\tRG:Z:%s", app->readGroupID);                                           // Print RG tag
 
+    fprintf(app->out, "\tAS:i:%d", samLine->blastScore);                                            // Print AS tag
+    fprintf(app->out, "\tXB:f:%g", samLine->blastBitScore);                                         // Print XB tag
+    fprintf(app->out, "\tXE:Z:%.3g", samLine->blastEvalue);                                         // Print XE tag. Z and not f because BAM files can't handle those numbers
     fputc('\n', app->out);
 }
 
@@ -441,7 +447,11 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                 if (samOut[k]->hsp != NULL)
                 {
                     if (j - countUnprint != 0)                                                                                  // This is not the first record printed for this read
-                        samLine->flag |= SAM_SECONDARY;
+                    {
+                        samLine->flag |= SAM_SECONDARY;                                                                         // Secondary alignment
+                        samLine->seq = "*";
+                        samLine->qual = "*";                                                                                    // Reduce file size
+                    }
                     samLine->flag |= (samOut[k]->hsp->hsp_hit_to < samOut[k]->hsp->hsp_hit_from ? SAM_REVERSE : 0);             // The read is mapped on the reverse strand ?
                     samLine->refName = shortName(samOut[k]->rname);                                                             // Put a short version of the reference name in samLine
                     samLine->pos = (samLine->flag & SAM_REVERSE ? samOut[k]->hsp->hsp_hit_to : samOut[k]->hsp->hsp_hit_from);   // POS is the leftmost position of the read alignment on the reference
@@ -449,6 +459,9 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                         samLine->pos += firstPosRef(samOut[k]->rname);                                                          // Adjust the position to the first position of the reference (-z)
                     samLine->cigarStr = cigarStrBuilding(samOut[k]);                                                            // Build the CIGAR string
                     samLine->mapq = 60;                                                                                         // MAPQ
+                    samLine->blastScore = samOut[k]->hsp->hsp_score;                                                            // AS metadata tag: Blast score
+                    samLine->blastBitScore = samOut[k]->hsp->hsp_bit_score;                                                     // XB metadata tag: Blast bit score
+                    samLine->blastEvalue = samOut[k]->hsp->hsp_evalue;                                                          // XE metadata tag: Blast E-Value
                 }
 
                 // The read is unmapped

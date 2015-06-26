@@ -1,8 +1,6 @@
 *.o
-jeter*
 *~
 tmp*
 *.tmp
-bin
 src/parseXML.c
 src/parseXML.h
