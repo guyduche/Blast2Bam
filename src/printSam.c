@@ -471,6 +471,8 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                 else
                 {
                     samLine->flag |= SAM_UNMAP;
+                    if (samOut[invk] != NULL && samOut[invk]->hsp != NULL && j - countUnprint != 0)                             // Read unmapped, mate mapped but secondary: read flagged secondary
+                        samLine->flag |= SAM_SECONDARY;
                     if (samLine->refName == NULL)
                         samLine->refName = "*";
                 }
