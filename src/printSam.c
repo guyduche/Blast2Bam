@@ -419,7 +419,10 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
 
                         // The read is unmapped
                         else
-                            samLine->rnext = shortName(samOut[invk]->rname);
+                        {
+                            samLine->refName = samLine->rnext = shortName(samOut[invk]->rname);                                             // According to SAM specs, unmapped reads should have
+                            samLine->pos = samLine->pnext;                                                                                  // the RNAME and POS of their mate
+                        }
                     }
 
                     // The mate is unmapped
@@ -468,7 +471,8 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                 else
                 {
                     samLine->flag |= SAM_UNMAP;
-                    samLine->refName = "*";
+                    if (samLine->refName == NULL)
+                        samLine->refName = "*";
                 }
 
                 // Print a new line in SAM alignment section
