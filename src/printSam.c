@@ -445,6 +445,8 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                 samLine->readName = samOut[k]->query->name;
                 samLine->seq = samOut[k]->query->seq;
                 samLine->qual = samOut[k]->query->qual;
+                if (samLine->qual == NULL)
+                    samLine->qual = "*";
 
                 // The read is mapped
                 if (samOut[k]->hsp != NULL)

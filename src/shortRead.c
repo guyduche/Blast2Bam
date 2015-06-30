@@ -82,11 +82,25 @@ ShortReadPtr shortReadNext(gzFile in)
         ptr->name = shortName(ptr->name + 1);       // Put the short version of the read name in the ShortRead structure
     ptr->seq = gzReadLine(in, &line_len);           // Get the sequence
     ptr->read_len = line_len;
-    free(gzReadLine(in, &line_len));                // Discard the third line (+)
-    ptr->qual = gzReadLine(in, &line_len);          // Get the sequence quality
 
-    if (line_len != ptr->read_len)                  // Seq and qual should have the same length
-        ERROR("Wrong quality string length\n", NULL);
+    switch (gzgetc(in))
+    {
+        case -1: break;                             // End of file
+        
+        case '+':                                   // FastQ
+        {
+            free(gzReadLine(in, &line_len));            // Discard the third line
+            ptr->qual = gzReadLine(in, &line_len);      // Get the sequence quality
+            if (line_len != ptr->read_len)              // Seq and qual should have the same length
+                ERROR("Wrong quality string length\n", NULL);
+        } break;
+        
+        case '>':                                   // Fasta
+            gzseek(in, -1, SEEK_CUR); break;
+        
+        default:
+            ERROR("Neither FastQ nor Fasta\n", NULL); break;
+    }
 
     return ptr;
 }
