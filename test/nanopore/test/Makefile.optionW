@@ -1,0 +1,32 @@
+.PHONY: clean destroy
+.SHELL = /bin/bash
+BINDIR = ../../../bin/
+SRCDIR = ../../../src/
+FASTQ = ../ERR732557.fastq.gz
+DB = ../m13mp18.fasta
+NUMBERS = 
+
+test.txt: $(addprefix ${BINDIR}, blast2bam fastq2fasta) db.dict ${FASTQ} $(addsuffix .nin, ${DB})
+	$(foreach var, ${NUMBERS}, \
+		$(addprefix ${BINDIR}, fastq2fasta) ${FASTQ} | \
+		blastn -db ${DB} -num_threads 4 -word_size 8 -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
+		$(addprefix ${BINDIR}, blast2bam) -W $(var) -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} | \
+		samtools view -Sub -F 0xF00 - | samtools sort - results > results.bam ; \
+		samtools index results.bam ; \
+		samtools idxstats results.bam | paste - - >> $@ ;)
+
+$(addprefix ${BINDIR}, blast2bam fastq2fasta):
+	(cd ${SRCDIR}; ${MAKE})
+
+db.dict: ${DB}
+	picard-tools CreateSequenceDictionary R=$< O=$@
+
+$(addsuffix .nin,${DB}): ${DB}
+	makeblastdb -in $< -dbtype 'nucl'
+
+# Clean
+clean:
+	rm -f *.bam *.bai db.dict ../*.nhr ../*.nin ../*.nsq test.txt
+	
+destroy: clean
+	(cd ${SRCDIR}; ${MAKE} clean)
