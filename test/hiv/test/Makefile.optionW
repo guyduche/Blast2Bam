@@ -2,11 +2,23 @@
 .SHELL = /bin/bash
 BINDIR = ../../../bin/
 SRCDIR = ../../../src/
+OPTIONWPLT = ../../../scripts/optionW.plt
 FASTQ = ../test_1.fastq.gz ../test_2.fastq.gz
 DB = ../hiv.fasta
-NUMBERS = 
 
-test.txt: $(addprefix ${BINDIR}, blast2bam fastq2fasta) db.dict ${FASTQ} $(addsuffix .nin, ${DB})
+FIRST = 0
+LAST = 0
+INCREMENT = 1
+
+NUMBERS = $(shell seq ${FIRST} ${INCREMENT} ${LAST})
+
+# Make sure you have the last version of gnuplot
+
+optionW.png: optionW.txt
+	${HOME}/programs/gnuplot-5.0.1/src/gnuplot -c ${OPTIONWPLT} $(basename, $@).svg \'$<\' ${INCREMENT}
+	inkscape -z -y 1.0 -e $@ $(basename, $@).svg
+
+optionW.txt: $(addprefix ${BINDIR}, blast2bam fastq2fasta) db.dict ${FASTQ} $(addsuffix .nin, ${DB})
 	$(foreach var, ${NUMBERS}, \
 		$(addprefix ${BINDIR}, fastq2fasta) ${FASTQ} | \
 		blastn -db ${DB} -num_threads 4 -word_size 8 -outfmt 5 | \
@@ -26,7 +38,7 @@ $(addsuffix .nin,${DB}): ${DB}
 
 # Clean
 clean:
-	rm -f *.bam *.bai db.dict ../*.nhr ../*.nin ../*.nsq test.txt
+	rm -f *.bam *.bai db.dict ../*.nhr ../*.nin ../*.nsq
 	
 destroy: clean
 	(cd ${SRCDIR}; ${MAKE} clean)

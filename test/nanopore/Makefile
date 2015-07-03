@@ -23,7 +23,7 @@ $(addprefix ${BINDIR}, blast2bam fastq2fasta):
 db.dict: ${DB}
 	picard-tools CreateSequenceDictionary R=$< O=$@
 
-$(addsuffix .nin,${DB}): ${DB}
+$(addsuffix .nin, ${DB}): ${DB}
 	makeblastdb -in $< -dbtype 'nucl'
 
 # BWA
@@ -33,7 +33,7 @@ bamBWA_idx: resultsBWA.bam
 resultsBWA.bam: ${FASTQ} $(addsuffix .bwt, ${DB})
 	bwa mem -t 4 -x 'ont2d' ${DB} ${FASTQ} | samtools view -Sub -F 0xF00 - | samtools sort - $(basename $@) > $@
 
-$(addsuffix .bwt,${DB}): ${DB}
+$(addsuffix .bwt, ${DB}): ${DB}
 	bwa index ${DB}
 
 # Clean
