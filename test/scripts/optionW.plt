@@ -5,4 +5,4 @@ set ylabel "number of reads mapped"
 unset key
 set style data linespoint
 set output ARG1
-plot @ARG2 using ($0 * @ARG3):3
+plot @ARG2 using @ARG3:3

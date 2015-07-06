@@ -1,0 +1,24 @@
+.PHONY: all clean
+.SHELL = /bin/bash
+DEPTHPLT = ../scripts/depth.plt
+READSTAT = ../scripts/readstat.sh
+FASTQ = test.fastq.gz
+BAM = results.bam
+
+all: $(addprefix ${BAM}, .idxstats.txt .flagstats.txt .depth.png .readstats.txt)
+
+${BAM}.idxstats.txt:
+	samtools idxstats ${BAM} | paste - - > $@
+
+${BAM}.flagstats.txt:
+	samtools flagstat ${BAM} > $@
+
+${BAM}.depth.png:
+	samtools depth ${BAM} | gnuplot -c ${DEPTHPLT} ${BAM}.depth.svg \'\<cat\'
+	inkscape -z -y 1.0 -e $@ ${BAM}.depth.svg
+
+${BAM}.readstats.txt:
+	${READSTAT} ${FASTQ} > $@
+
+clean:
+	rm -f *.txt *.png *.svg

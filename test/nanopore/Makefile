@@ -14,7 +14,7 @@ bam_idx: results.bam
 results.bam: $(addprefix ${BINDIR}, blast2bam fastq2fasta) db.dict ${FASTQ} $(addsuffix .nin, ${DB})
 	$(addprefix ${BINDIR}, fastq2fasta) ${FASTQ} | \
 	blastn -db ${DB} -num_threads 4 -word_size 8 -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
-	$(addprefix ${BINDIR}, blast2bam) -W 20 -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} | \
+	$(addprefix ${BINDIR}, blast2bam) -R '@RG	ID:foo	SM:sample' - db.dict ${FASTQ} | \
 	samtools view -Sub -F 0xF00 - | samtools sort - $(basename $@) > $@
 
 $(addprefix ${BINDIR}, blast2bam fastq2fasta):

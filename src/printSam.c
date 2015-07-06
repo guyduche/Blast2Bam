@@ -217,34 +217,45 @@ static int firstPosRef(const char* rname)
 #define SAM_DUP 0x400               // Optical or PCR duplicate
 #define SAM_SUPPLEMENTARY 0x800     // Supplementary alignment
 
-// Function to filter the results according to option -W
+// Function to filter the results by the alignment size
 static int allowedToPrint(SamOutputPtr* samOut, int minLen, int countRec, int countHSPsec, int* countUnprint)
 {
-    if (samOut[0]->hsp != NULL && samOut[0]->hsp->hsp_align_len > minLen)                           // First read is mapped and alignment length is greater than the minimum length
+    int minLenAuto[2] = {0, 0};
+
+    if (minLen)                                                                                          // Option W is set
+        minLenAuto[0] = minLenAuto[1] = minLen;
+    else                                                                                                 // If not given, the minimum alignment length is calculated based on the read length
     {
-        if (samOut[1] != NULL && samOut[1]->hsp != NULL && samOut[1]->hsp->hsp_align_len < minLen)      // Second read is mapped and alignment length is less than the minimum length
+        minLenAuto[0] = (samOut[0]->query->read_len / 10 > 15 ? samOut[0]->query->read_len / 10 : 15);
+        if (samOut[1] != NULL)
+            minLenAuto[1] = (samOut[1]->query->read_len / 10 > 15 ? samOut[1]->query->read_len / 10 : 15);
+    }
+
+    if (samOut[0]->hsp != NULL && samOut[0]->hsp->hsp_align_len > minLenAuto[0])                         // First read is mapped and alignment length is greater than the minimum length
+    {
+        if (samOut[1] != NULL && samOut[1]->hsp != NULL && samOut[1]->hsp->hsp_align_len < minLenAuto[1])   // Second read is mapped and alignment length is less than the minimum length
         {
-            if (*countUnprint != (countRec - countHSPsec))                                                  // If not last first read HSP, the record is not printed
+            if (*countUnprint != (countRec - countHSPsec))                                                      // If not last first read HSP, the record is not printed
                 {(*countUnprint)++; return 0;}	
-            else                                                                                            // If last first read HSP, print with second read considered unmapped
+            else                                                                                                // If last first read HSP, print with second read considered unmapped
                 samOut[1]->hsp = NULL;
         }
     }
 
-    else                                                                                            // First read is unmapped or alignment length less than the minimum length
+    else                                                                                                 // First read is unmapped or alignment length less than the minimum length
     {
-        if (samOut[1] != NULL && samOut[1]->hsp != NULL && samOut[1]->hsp->hsp_align_len > minLen)      // Second read is mapped and alignment length greater than the minimum given length
+        if (samOut[1] != NULL && samOut[1]->hsp != NULL && samOut[1]->hsp->hsp_align_len > minLenAuto[1])   // Second read is mapped and alignment length greater than the minimum length
         {
-            if (*countUnprint != (countRec - countHSPsec))                                                  // If not last first read HSP, the record is not printed
+            if (*countUnprint != (countRec - countHSPsec))                                                      // If not last first read HSP, the record is not printed
                 {(*countUnprint)++; return 0;}
-            else                                                                                            // If last first read HSP or if first read unmapped, print with first read considered unmapped
+            else                                                                                                // If last first read HSP or if first read unmapped, print with first read considered unmapped
                 samOut[0]->hsp = NULL;
         }
-        else                                                                                            // Single end or second read unmapped or alignment length less than the minimum length
+        else                                                                                                // Single end or second read unmapped or alignment length less than the minimum length
         {
-            if (*countUnprint != countRec -1)                                                               // If not last record, it is not printed
+            if (*countUnprint != countRec -1)                                                                   // If not last record, it is not printed
                 {(*countUnprint)++; return 0;}
-            else                                                                                            // If last record, print with both reads considered unmapped
+            else                                                                                                // If last record, print with both reads considered unmapped
             {
                 samOut[0]->hsp = NULL;
                 if (samOut[1] != NULL)
@@ -368,9 +379,8 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
 
                 if (samOut[k] == NULL || doNotPrint) continue;          // When on the second in pair part of the record, if single end or record filtered, go to the next record
 
-                if (app->minLen != 0 && !k)                             // If option -W is active, filter the records
-                    if (!allowedToPrint(samOut, app->minLen, itSam->samHits[i]->countRec, itSam->samHits[i]->countHSPsec, &countUnprint))
-                        {doNotPrint = 1; continue;}
+                if (!k && !allowedToPrint(samOut, app->minLen, itSam->samHits[i]->countRec, itSam->samHits[i]->countHSPsec, &countUnprint)) // Filter the records
+                    {doNotPrint = 1; continue;}
 
                 samLine = (SamLinePtr) safeCalloc(1, sizeof(SamLine));  // Create a new line for the alignment section of the SAM file
 

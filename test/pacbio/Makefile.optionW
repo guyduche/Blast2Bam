@@ -1,21 +1,21 @@
 .PHONY: clean destroy
 .SHELL = /bin/bash
-BINDIR = ../../../bin/
-SRCDIR = ../../../src/
-OPTIONWPLT = ../../../scripts/optionW.plt
-FASTQ = ../ERR732557.fastq.gz
-DB = ../m13mp18.fasta
+BINDIR = ../../bin/
+SRCDIR = ../../src/
+OPTIONWPLT = ../scripts/optionW.plt
+FASTQ = test.fastq.gz
+DB = ecoli.fasta
 
 FIRST = 0
-LAST = 0
-INCREMENT = 1
+LAST = 100
+INCREMENT = 5
 
 NUMBERS = $(shell seq ${FIRST} ${INCREMENT} ${LAST})
 
 # Make sure you have the last version of gnuplot
 
 optionW.png: optionW.txt
-	${HOME}/programs/gnuplot-5.0.1/src/gnuplot -c ${OPTIONWPLT} $(basename, $@).svg \'$<\' ${INCREMENT}
+	gnuplot -c ${OPTIONWPLT} $(basename, $@).svg \'$<\' '(($$0+'${FIRST}')*'${INCREMENT}')'
 	inkscape -z -y 1.0 -e $@ $(basename, $@).svg
 
 optionW.txt: $(addprefix ${BINDIR}, blast2bam fastq2fasta) db.dict ${FASTQ} $(addsuffix .nin, ${DB})
@@ -38,7 +38,7 @@ $(addsuffix .nin, ${DB}): ${DB}
 
 # Clean
 clean:
-	rm -f *.bam *.bai db.dict ../*.nhr ../*.nin ../*.nsq
+	rm -f results.bam results.bam.bai db.dict *.nhr *.nin *.nsq optionW*
 	
 destroy: clean
 	(cd ${SRCDIR}; ${MAKE} clean)
