@@ -226,16 +226,16 @@ static int allowedToPrint(SamOutputPtr* samOut, int minLen, int countRec, int co
         minLenAuto[0] = minLenAuto[1] = minLen;
     else                                                                                                 // If not given, the minimum alignment length is calculated based on the read length
     {
-        minLenAuto[0] = (samOut[0]->query->read_len / 10 > 15 ? samOut[0]->query->read_len / 10 : 15);
+        minLenAuto[0] = (samOut[0]->query->read_len / 5 > 20 ? samOut[0]->query->read_len / 5 : 20);
         if (samOut[1] != NULL)
-            minLenAuto[1] = (samOut[1]->query->read_len / 10 > 15 ? samOut[1]->query->read_len / 10 : 15);
+            minLenAuto[1] = (samOut[1]->query->read_len / 5 > 20 ? samOut[1]->query->read_len / 5 : 20);
     }
 
     if (samOut[0]->hsp != NULL && samOut[0]->hsp->hsp_align_len > minLenAuto[0])                         // First read is mapped and alignment length is greater than the minimum length
     {
         if (samOut[1] != NULL && samOut[1]->hsp != NULL && samOut[1]->hsp->hsp_align_len < minLenAuto[1])   // Second read is mapped and alignment length is less than the minimum length
         {
-            if (*countUnprint < (countRec - countHSPsec))                                                      // If not last first read HSP, the record is not printed
+            if (*countUnprint < (countRec - countHSPsec))                                                       // If not last first read HSP, the record is not printed
                 {(*countUnprint)++; return 0;}	
             else                                                                                                // If last first read HSP, print with second read considered unmapped
                 samOut[1]->hsp = NULL;
