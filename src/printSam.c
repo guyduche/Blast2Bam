@@ -226,7 +226,7 @@ static int allowedToPrint(SamOutputPtr* samOut, int minLen, int countRec, int co
         minLenAuto[0] = minLenAuto[1] = minLen;
     else                                                                                                 // If not given, the minimum alignment length is calculated based on the read length
     {
-        minLenAuto[0] = (samOut[0]->query->read_len / 5 > 20 ? samOut[0]->query->read_len / 5 : 20);
+        minLenAuto[0] = (samOut[0]->query->read_len / 5 > 20 ? samOut[0]->query->read_len / 5 : 20);        // Default filter: 20% of the read length must be aligned, with a minimum of 20
         if (samOut[1] != NULL)
             minLenAuto[1] = (samOut[1]->query->read_len / 5 > 20 ? samOut[1]->query->read_len / 5 : 20);
     }
@@ -362,8 +362,8 @@ static void printSamLine (AppParamPtr app, SamLinePtr samLine)
 // Print the alignment section
 void printSam(IterationSamPtr itSam, AppParamPtr app)
 {
-    int i = 0, j = 0, k = 0;
-    int invk = 0, len0 = 0, len1 = 0, doNotPrint = 0, countUnprint = 0;
+    int i = 0, j = 0, k = 0, invk = 0;
+    int len0 = 0, len1 = 0, doNotPrint = 0, countUnprint = 0, posRef = 0;
     SamOutputPtr samOut[2] = {NULL, NULL};
     SamLinePtr samLine = NULL;
 
@@ -379,8 +379,14 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
 
                 if (samOut[k] == NULL || doNotPrint) continue;          // When on the second in pair part of the record, if single end or record filtered, go to the next record
 
-                if (!k && !allowedToPrint(samOut, app->minLen, itSam->samHits[i]->countRec, itSam->samHits[i]->countHSPsec, &countUnprint)) // Filter the records
-                    {doNotPrint = 1; continue;}
+                if (!k)
+                {
+                    if (!allowedToPrint(samOut, app->minLen, itSam->samHits[i]->countRec, itSam->samHits[i]->countHSPsec, &countUnprint))   // Filter the records
+                        {doNotPrint = 1; continue;}
+
+                    if (app->posOnChr && samOut[k]->rname != NULL) posRef = firstPosRef(samOut[k]->rname);                                  // Extract the position of the reference from its name (-z)
+                    else posRef = 0;
+                }
 
                 samLine = (SamLinePtr) safeCalloc(1, sizeof(SamLine));  // Create a new line for the alignment section of the SAM file
 
@@ -394,7 +400,7 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                     {
                         samLine->flag |= (samOut[invk]->hsp->hsp_hit_to < samOut[invk]->hsp->hsp_hit_from ? SAM_MREVERSE : 0);              // Mate mapped on the reverse strand ?
                         samLine->pnext = (samLine->flag & SAM_MREVERSE ? samOut[invk]->hsp->hsp_hit_to : samOut[invk]->hsp->hsp_hit_from);  // PNEXT is the leftmost position of the mate alignment on the reference
-                        if (app->posOnChr) samLine->pnext += firstPosRef(samOut[invk]->rname);                                              // Adjust the position to the first position of the reference (-z)
+                        samLine->pnext += posRef;                                                                                           // Adjust the position to the first position of the reference (-z)
 
                         // The read is mapped
                         if (samOut[k]->hsp != NULL)
@@ -470,8 +476,7 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                     samLine->flag |= (samOut[k]->hsp->hsp_hit_to < samOut[k]->hsp->hsp_hit_from ? SAM_REVERSE : 0);             // The read is mapped on the reverse strand ?
                     samLine->refName = shortName(samOut[k]->rname);                                                             // Put a short version of the reference name in samLine
                     samLine->pos = (samLine->flag & SAM_REVERSE ? samOut[k]->hsp->hsp_hit_to : samOut[k]->hsp->hsp_hit_from);   // POS is the leftmost position of the read alignment on the reference
-                    if (app->posOnChr)
-                        samLine->pos += firstPosRef(samOut[k]->rname);                                                          // Adjust the position to the first position of the reference (-z)
+                    samLine->pos += posRef;                                                                                     // Adjust the position to the first position of the reference (-z)
                     samLine->cigarStr = cigarStrBuilding(samOut[k]);                                                            // Build the CIGAR string
                     samLine->mapq = 60;                                                                                         // MAPQ
                     samLine->blastScore = samOut[k]->hsp->hsp_score;                                                            // AS metadata tag: Blast score
