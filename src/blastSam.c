@@ -40,7 +40,7 @@ typedef struct RecordVariables
 
                                 // These variables are used to record second in pair read's alignment on references where the first in pair is not mapped
     int tmpHitNb;               // Number of references where the second in pair read is mapped
-    HitPtr hitTmp;              // Temp pointer to the first reference where the second in pair read is mapped 
+    HitPtr hitTmp;              // Temp pointer to the first reference where the second in pair read is mapped
 
     HspPtr hspTmp;              // Temp pointer to the first HSP of the second in pair read
                                 // Used to enable the record of all first in pair alignments with all second in pair alignments
@@ -70,6 +70,7 @@ static IterationSamPtr hitRecord(
 
     countHit = itSam->countHit;
     countRec = ++(itSam->samHits[countHit-1]->countRec);
+    itSam->countRecGlobal++;
 
     itSam->samHits[countHit-1]->rsSam = (RecordSamPtr*) safeRealloc(itSam->samHits[countHit-1]->rsSam, countRec * sizeof(RecordSamPtr));    // Create or append a given Hit record array
     itSam->samHits[countHit-1]->rsSam[countRec-1] = (RecordSamPtr) safeCalloc(1, sizeof(RecordSam));                                        // Create a new record
@@ -236,6 +237,7 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
             rVar->reads[1] = shortReadNext(fp2);
 
         itSam = hitRecord(itFirst->iteration_hits, itSec->iteration_hits, itSam, rVar); // Record the results of the pair of reads together
+        recordAnalysis(itSam, app);                                                     // Analyse the records
         printSam(itSam, app);                                                           // Print the two reads in the alignment section of the SAM file
 
         deallocIteration(itFirst);
@@ -250,6 +252,7 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
         itFirst = parseIteration(reader);                               // Get the Blast results
         rVar->reads[0] = shortReadNext(fp);                             // Get the read's infos from the fastQ
         itSam = hitRecord(itFirst->iteration_hits, NULL, itSam, rVar);  // Record the results
+        recordAnalysis(itSam, app);                                     // Analyse the records
         printSam(itSam, app);                                           // Print the read in the alignment section of the SAM file
         deallocIteration(itFirst);                                      // Dealloc the record structure
         shortReadFree(rVar->reads[0]);                                  // Dealloc the structure containing the read's infos

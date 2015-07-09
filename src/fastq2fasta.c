@@ -49,7 +49,7 @@ int main(int argc, char** argv)
     FILE* out = NULL;
     int c = 0, option_index = 0;
 
-    static struct option long_options[] = 
+    static struct option long_options[] =
     {
         {"output", required_argument, 0, 'o'},
         {"help", no_argument, 0, 'h'},
@@ -74,7 +74,7 @@ int main(int argc, char** argv)
         }
     }
 
-    // Set default output to stdout	
+    // Set default output to stdout
     if (out == NULL) out = stdout;
 
     if (argc < optind)

@@ -87,6 +87,9 @@ typedef struct SamOutput
 typedef struct RecordSam
 {
     SamOutputPtr samOut[2];     // Array containing the reads and their alignment infos. 0: first in pair; 1: second in pair
+    int tlen;                   // TLEN: distance between the first alignment position of both reads
+    int doNotPrint;             // Flag the bad alignments
+    int best;                   // Flag the best alignment
 } RecordSam, *RecordSamPtr;
 
 // Sub-unit of IterationSam : contains the alignments for a single reference
@@ -103,6 +106,7 @@ typedef struct IterationSam
 {
     SamHitPtr* samHits;         // Array containing the hits found for each reference
     size_t countHit;            // Number of hits (number of references on which an alignment has been found for the read)
+    size_t countRecGlobal;
 } IterationSam, *IterationSamPtr;
 
 
@@ -112,6 +116,7 @@ typedef struct IterationSam
 /************************************************************************************/
 int blastToSam(AppParamPtr app);
 int samHead(AppParamPtr app);
+void recordAnalysis(IterationSamPtr itSam, AppParamPtr app);
 void printSam(IterationSamPtr itSam, AppParamPtr app);
 
 

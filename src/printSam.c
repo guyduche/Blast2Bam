@@ -74,7 +74,7 @@ static void sq_line(AppParamPtr app, char* filename)
 
 // Print the read group line
 static int rg_line(AppParamPtr app, char* readGroup)
-{	
+{
     if (strstr(readGroup, "@RG") != readGroup) return 1;    // Verify that the read group begins with @RG
     if (strstr(readGroup, "\tID:") == NULL) return 1;       // Verify that the read group has an ID
     fprintf(app->out, "%s\n", readGroup);                   // Print the read group in the SAM header
@@ -89,6 +89,143 @@ int samHead(AppParamPtr app)
         if (rg_line(app,app->readGroup) == 1) return 1;     // If the read group is incorrectly formatted, returns an error
     fprintf(app->out, "%s\n", app->pg_line);                // Print the PG line
     return 0;
+}
+
+
+/************************************************************************************/
+/*  Record analysis                                                                 */
+/************************************************************************************/
+// Function to filter the results by the alignment size
+static int allowedToPrint(SamOutputPtr* samOut, int minLen, int countRec, int countRecGlobal, int countHSPsec, int countUnprintGlobal, int countUnprint, int countUnprintSec)
+{
+    int minLenAuto[2] = {0, 0};
+
+    if (minLen)                                                                                          // Option W is set
+        minLenAuto[0] = minLenAuto[1] = minLen;
+    else                                                                                                 // If not given, the minimum alignment length is calculated based on the read length
+    {
+        minLenAuto[0] = (samOut[0]->query->read_len / 5 > 20 ? samOut[0]->query->read_len / 5 : 20);        // Default filter: 20% of the read length must be aligned, with a minimum of 20
+        if (samOut[1] != NULL)
+            minLenAuto[1] = (samOut[1]->query->read_len / 5 > 20 ? samOut[1]->query->read_len / 5 : 20);
+    }
+
+    if (samOut[0]->hsp != NULL && samOut[0]->hsp->hsp_align_len > minLenAuto[0])                         // First read is mapped and alignment length is greater than the minimum length
+    {
+        if (samOut[1] != NULL && samOut[1]->hsp != NULL && samOut[1]->hsp->hsp_align_len < minLenAuto[1])   // Second read is mapped and alignment length is less than the minimum length
+        {
+            if (countUnprintSec != countHSPsec - 1)                                                             // Unless all the second read HSPs corresponding to the current first read HSP have been filtered, the record won't be printed
+                return 0;
+            else                                                                                                // If all the others have been filtered, print the record with second read considered unmapped
+                samOut[1]->hsp = NULL;
+        }
+    }
+
+    else                                                                                                 // First read is unmapped or alignment length less than the minimum length
+    {
+        if (samOut[1] != NULL && samOut[1]->hsp != NULL && samOut[1]->hsp->hsp_align_len > minLenAuto[1])   // Second read is mapped and alignment length greater than the minimum length
+        {
+            if (countUnprint < (countRec - countHSPsec))                                                        // If not last first read HSP, the record is not printed
+                return 0;
+            else                                                                                                // If last first read HSP or if first read unmapped, print with first read considered unmapped
+                samOut[0]->hsp = NULL;
+        }
+        else                                                                                                // Single end or second read unmapped or alignment length less than the minimum length
+        {
+            if (countUnprintGlobal != countRecGlobal -1)                                                        // If not last record, it is not printed
+                return 0;
+            else                                                                                                // If last record, print with both reads considered unmapped
+            {
+                samOut[0]->hsp = NULL;
+                if (samOut[1] != NULL)
+                    samOut[1]->hsp = NULL;
+            }
+        }
+    }
+    return 1;
+}
+
+// Analyse the records to flag the best and flag the ones unfit to be printed in the SAM file
+void recordAnalysis(IterationSamPtr itSam, AppParamPtr app)
+{
+    int i = 0, j = 0, len0 = 0, len1 = 0, countUnprint = 0, countUnprintGlobal = 0, countUnprintSec = 0;
+    double score = 0.0, bestScore = 2.0;
+    RecordSamPtr bestRecord = NULL;
+    RecordSamPtr curRecord = NULL;
+
+    for (i = 0; i < itSam->countHit; i++)               // Go through all the reference hits
+    {
+        for (j = 0; j < itSam->samHits[i]->countRec; j++)   // Go through all the records
+        {
+            curRecord = itSam->samHits[i]->rsSam[j];
+            score = 0.0;
+
+            // CountUnprintSec is reset for each new HSP first
+            if (itSam->samHits[i]->countHSPsec != 0 && j % itSam->samHits[i]->countHSPsec == 0)
+                countUnprintSec = 0;
+
+            // Filter the records
+            if (!allowedToPrint(curRecord->samOut, app->minLen, itSam->samHits[i]->countRec, itSam->countRecGlobal, itSam->samHits[i]->countHSPsec, countUnprintGlobal, countUnprint, countUnprintSec))
+            {
+                curRecord->doNotPrint = 1;
+                countUnprint++;
+                countUnprintSec++;
+                countUnprintGlobal++;
+                continue;
+            }
+
+            // The first in pair is mapped
+            if (curRecord->samOut[0]->hsp != NULL)
+            {
+                score += curRecord->samOut[0]->hsp->hsp_evalue;
+                // The second in pair is mapped
+                if (curRecord->samOut[1] != NULL && curRecord->samOut[1]->hsp != NULL)
+                {
+                    score += curRecord->samOut[1]->hsp->hsp_evalue;
+                    curRecord->tlen = abs(curRecord->samOut[0]->hsp->hsp_hit_from - curRecord->samOut[1]->hsp->hsp_hit_from) + 1;       // Tlen
+                    len0 = abs(curRecord->samOut[0]->hsp->hsp_hit_to - curRecord->samOut[0]->hsp->hsp_hit_from) + 1;                    // Length of the first in pair alignment on the reference
+                    len1 = abs(curRecord->samOut[1]->hsp->hsp_hit_to - curRecord->samOut[1]->hsp->hsp_hit_from) + 1;                    // Length of the second in pair alignment on the reference
+                    if (curRecord->tlen > 3 * (len0 >= len1 ? len0 : len1))                                                             // 3 times the alignment length of the longest read
+                    {                                                                                                                   // Pair of reads not properly aligned
+                        if (countUnprintGlobal != (itSam->countRecGlobal -1))                                                           // If not the last record, go to the next record
+                        {
+                            curRecord->doNotPrint = 1;
+                            countUnprint++;
+                            countUnprintSec++;
+                            countUnprintGlobal++;
+                            continue;
+                        }
+                        else                                                                                                            // If last record, both reads are considered unmapped
+                            curRecord->samOut[0]->hsp = curRecord->samOut[1]->hsp = NULL;
+                    }
+                }
+                // The second in pair is unmapped
+                else
+                {
+                    score += 0.5;
+                    curRecord->tlen = 0;
+                }
+            }
+            // The first in pair is unmapped
+            else
+            {
+                score += 0.5;
+                curRecord->tlen = 0;
+                // The second in pair is mapped
+                if (curRecord->samOut[1] != NULL && curRecord->samOut[1]->hsp != NULL)
+                    score += curRecord->samOut[1]->hsp->hsp_evalue;
+                else
+                    score += 0.5;
+            }
+
+            if (score < bestScore)
+            {
+                bestScore = score;
+                bestRecord = curRecord;
+            }
+        }
+        countUnprint = 0;
+    }
+    bestRecord->best = 1;
 }
 
 
@@ -155,7 +292,7 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
         cigar->size++;
         cigar->elements = (CigarElementPtr*) safeRealloc(cigar->elements, cigar->size * sizeof(CigarElementPtr));
         cigar->elements[cigar->size-1] = (CigarElementPtr) safeCalloc(1, sizeof(CigarElement));
-        cigar->elements[cigar->size-1]->count = queryLength - hsp->hsp_query_to;    // Count = length of the read - position of the last aligned base on the query sequence 
+        cigar->elements[cigar->size-1]->count = queryLength - hsp->hsp_query_to;    // Count = length of the read - position of the last aligned base on the query sequence
         cigar->elements[cigar->size-1]->symbol = 'S';
     }
 
@@ -165,7 +302,7 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
 
 /************************************************************************************/
 /*  Get the reverse complement of a sequence                                        */
-/************************************************************************************/ 
+/************************************************************************************/
 static char* revStr(char* oldStr)
 {
     size_t i = 0;
@@ -194,7 +331,7 @@ static char* revStr(char* oldStr)
 static int firstPosRef(const char* rname)
 {
     char* colon = strchr(rname, ':');
-    if (colon == NULL) 
+    if (colon == NULL)
         return 0;
     return strtol(colon + 1, NULL, 10);
 }
@@ -216,55 +353,6 @@ static int firstPosRef(const char* rname)
 #define SAM_QCFAIL 0x200            // Failed control quality
 #define SAM_DUP 0x400               // Optical or PCR duplicate
 #define SAM_SUPPLEMENTARY 0x800     // Supplementary alignment
-
-// Function to filter the results by the alignment size
-static int allowedToPrint(SamOutputPtr* samOut, int minLen, int countRec, int countHSPsec, int* countUnprint)
-{
-    int minLenAuto[2] = {0, 0};
-
-    if (minLen)                                                                                          // Option W is set
-        minLenAuto[0] = minLenAuto[1] = minLen;
-    else                                                                                                 // If not given, the minimum alignment length is calculated based on the read length
-    {
-        minLenAuto[0] = (samOut[0]->query->read_len / 5 > 20 ? samOut[0]->query->read_len / 5 : 20);        // Default filter: 20% of the read length must be aligned, with a minimum of 20
-        if (samOut[1] != NULL)
-            minLenAuto[1] = (samOut[1]->query->read_len / 5 > 20 ? samOut[1]->query->read_len / 5 : 20);
-    }
-
-    if (samOut[0]->hsp != NULL && samOut[0]->hsp->hsp_align_len > minLenAuto[0])                         // First read is mapped and alignment length is greater than the minimum length
-    {
-        if (samOut[1] != NULL && samOut[1]->hsp != NULL && samOut[1]->hsp->hsp_align_len < minLenAuto[1])   // Second read is mapped and alignment length is less than the minimum length
-        {
-            if (*countUnprint < (countRec - countHSPsec))                                                       // If not last first read HSP, the record is not printed
-                {(*countUnprint)++; return 0;}	
-            else                                                                                                // If last first read HSP, print with second read considered unmapped
-                samOut[1]->hsp = NULL;
-        }
-    }
-
-    else                                                                                                 // First read is unmapped or alignment length less than the minimum length
-    {
-        if (samOut[1] != NULL && samOut[1]->hsp != NULL && samOut[1]->hsp->hsp_align_len > minLenAuto[1])   // Second read is mapped and alignment length greater than the minimum length
-        {
-            if (*countUnprint < (countRec - countHSPsec))                                                       // If not last first read HSP, the record is not printed
-                {(*countUnprint)++; return 0;}
-            else                                                                                                // If last first read HSP or if first read unmapped, print with first read considered unmapped
-                samOut[0]->hsp = NULL;
-        }
-        else                                                                                                // Single end or second read unmapped or alignment length less than the minimum length
-        {
-            if (*countUnprint != countRec -1)                                                                   // If not last record, it is not printed
-                {(*countUnprint)++; return 0;}
-            else                                                                                                // If last record, print with both reads considered unmapped
-            {
-                samOut[0]->hsp = NULL;
-                if (samOut[1] != NULL)
-                    samOut[1]->hsp = NULL;
-            }
-        }
-    }
-    return 1;
-}
 
 // Print the CIGAR str straight or reverse depending on the flag
 static void printCigarStr (AppParamPtr app, CigarElementPtr* cigElements, size_t size, int flag)
@@ -362,8 +450,7 @@ static void printSamLine (AppParamPtr app, SamLinePtr samLine)
 // Print the alignment section
 void printSam(IterationSamPtr itSam, AppParamPtr app)
 {
-    int i = 0, j = 0, k = 0, invk = 0;
-    int len0 = 0, len1 = 0, doNotPrint = 0, countUnprint = 0, posRef = 0;
+    int i = 0, j = 0, k = 0, invk = 0, posRef = 0;
     SamOutputPtr samOut[2] = {NULL, NULL};
     SamLinePtr samLine = NULL;
 
@@ -371,20 +458,19 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
     {
         for (j = 0; j < itSam->samHits[i]->countRec; j++)   // Go through all the records
         {
+            if (itSam->samHits[i]->rsSam[j]->doNotPrint) continue;
+
             for (k = 0; k < 2; k++)                             // Print the first in pair and then the second
             {
                 invk = (k ? 0 : 1);
                 samOut[k] = itSam->samHits[i]->rsSam[j]->samOut[k];
                 samOut[invk] = itSam->samHits[i]->rsSam[j]->samOut[invk];
 
-                if (samOut[k] == NULL || doNotPrint) continue;          // When on the second in pair part of the record, if single end or record filtered, go to the next record
+                if (samOut[k] == NULL) continue;                        // When on the second in pair part of the record, if single end, go to the next record
 
                 if (!k)
                 {
-                    if (!allowedToPrint(samOut, app->minLen, itSam->samHits[i]->countRec, itSam->samHits[i]->countHSPsec, &countUnprint))   // Filter the records
-                        {doNotPrint = 1; continue;}
-
-                    if (app->posOnChr && samOut[k]->rname != NULL) posRef = firstPosRef(samOut[k]->rname);                                  // Extract the position of the reference from its name (-z)
+                    if (app->posOnChr && samOut[k]->rname != NULL) posRef = firstPosRef(samOut[k]->rname);  // Extract the position of the reference from its name (-z)
                     else posRef = 0;
                 }
 
@@ -405,39 +491,16 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                         // The read is mapped
                         if (samOut[k]->hsp != NULL)
                         {
-                            samLine->tlen = samOut[invk]->hsp->hsp_hit_from - samOut[k]->hsp->hsp_hit_from;                                 // TLEN: distance between the first alignment position of both reads
-                            if (samLine->tlen)
-                                samLine->tlen += (samLine->tlen > 0 ? 1 : -1);
-
-                            len0 = abs(samOut[k]->hsp->hsp_hit_to - samOut[k]->hsp->hsp_hit_from) + 1;                                      // Length of the read alignment on the reference
-                            len1 = abs(samOut[invk]->hsp->hsp_hit_to - samOut[invk]->hsp->hsp_hit_from) + 1;                                // Length of the mate alignment on the reference
-                            if (abs(samLine->tlen) > 3 * (len0 >= len1 ? len0 : len1) ||                                                    // 3 times the alignment length of the longest read
-                                abs(samLine->tlen) < (len0 >= len1 ? len1 : len0))                                                          // Pair of reads not properly aligned
-                            {
-                                if (countUnprint != (itSam->samHits[i]->countRec -1))                                                           // If not the last record, go to the next record
-                                    {doNotPrint = 1; countUnprint++; free(samLine); continue;}
-                                else                                                                                                            // If last record, both reads are considered unmapped
-                                {
-                                    samLine->flag &= ~SAM_MREVERSE;
-                                    samLine->flag |= SAM_MUNMAP;
-                                    samLine->rnext = "*";
-                                    samLine->pnext = 0;
-                                    samOut[k]->hsp = NULL;
-                                    samOut[invk]->hsp = NULL;
-                                }
-                            }
-                            else                                                                                                            // Pair of reads properly aligned
-                            {
-                                samLine->rnext = "=";
-                                samLine->flag |= SAM_PROPER_PAIR;
-                            }
+                            samLine->rnext = "=";
+                            samLine->flag |= SAM_PROPER_PAIR;
                         }
 
                         // The read is unmapped
                         else
                         {
-                            samLine->refName = samLine->rnext = shortName(samOut[invk]->rname);                                             // According to SAM specs, unmapped reads should have
+                            samLine->refName = shortName(samOut[invk]->rname);                                                              // According to SAM specs, unmapped reads should have
                             samLine->pos = samLine->pnext;                                                                                  // the RNAME and POS of their mate
+                            samLine->rnext = "=";
                         }
                     }
 
@@ -446,16 +509,12 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                     {
                         samLine->flag |= SAM_MUNMAP;
                         samLine->rnext = "*";
-                        samLine->pnext = 0;
                     }
                 }
 
                 // Single end
                 else
-                {
                     samLine->rnext = "*";
-                    samLine->pnext = 0;
-                }
 
                 // Put the read infos in samLine
                 samLine->readName = samOut[k]->query->name;
@@ -467,7 +526,7 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                 // The read is mapped
                 if (samOut[k]->hsp != NULL)
                 {
-                    if (j - countUnprint != 0)                                                                                  // This is not the first record printed for this read
+                    if (!itSam->samHits[i]->rsSam[j]->best)                                                                     // This is not the best record of this read
                     {
                         samLine->flag |= SAM_SECONDARY;                                                                         // Secondary alignment
                         samLine->seq = "*";
@@ -479,6 +538,9 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                     samLine->pos += posRef;                                                                                     // Adjust the position to the first position of the reference (-z)
                     samLine->cigarStr = cigarStrBuilding(samOut[k]);                                                            // Build the CIGAR string
                     samLine->mapq = 60;                                                                                         // MAPQ
+                    samLine->tlen = itSam->samHits[i]->rsSam[j]->tlen;                                                          // TLEN: distance between the first alignment position of both reads
+                    if (samLine->tlen && samLine->flag & SAM_REVERSE)
+                        samLine->tlen = -(samLine->tlen);
                     samLine->blastScore = samOut[k]->hsp->hsp_score;                                                            // AS metadata tag: Blast score
                     samLine->blastBitScore = samOut[k]->hsp->hsp_bit_score;                                                     // XB metadata tag: Blast bit score
                     samLine->blastEvalue = samOut[k]->hsp->hsp_evalue;                                                          // XE metadata tag: Blast E-Value
@@ -488,8 +550,12 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                 else
                 {
                     samLine->flag |= SAM_UNMAP;
-                    if (samOut[invk] != NULL && samOut[invk]->hsp != NULL && j - countUnprint != 0)                             // Read unmapped, mate mapped but secondary: read flagged secondary
+                    if (samOut[invk] != NULL && samOut[invk]->hsp != NULL && !itSam->samHits[i]->rsSam[j]->best)                // Read unmapped, mate mapped but secondary: read flagged secondary
+                    {
                         samLine->flag |= SAM_SECONDARY;
+                        samLine->seq = "*";
+                        samLine->qual = "*";                                                                                    // Reduce file size
+                    }
                     if (samLine->refName == NULL)
                         samLine->refName = "*";
                 }
@@ -498,8 +564,6 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                 printSamLine (app, samLine);
                 free(samLine);
             }
-            doNotPrint = 0;
         }
-        countUnprint = 0;
     }
 }

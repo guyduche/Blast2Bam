@@ -45,7 +45,7 @@ static char* gzReadLine(gzFile in, size_t* line_len)
     while (!endsWithCR) // Until a '\n' is found
     { // Useful in case BUFSIZ is too small to get the whole line
         buffer = (char*) safeMalloc(BUFSIZ);
-        if (gzgets(in, buffer, BUFSIZ) == NULL) return NULL; 
+        if (gzgets(in, buffer, BUFSIZ) == NULL) return NULL;
         if (gzeof(in)) return NULL;
 
         len = strlen(buffer);
@@ -86,7 +86,7 @@ ShortReadPtr shortReadNext(gzFile in)
     switch (gzgetc(in))
     {
         case -1: break;                             // End of file
-        
+
         case '+':                                   // FastQ
         {
             free(gzReadLine(in, &line_len));            // Discard the third line
@@ -94,10 +94,10 @@ ShortReadPtr shortReadNext(gzFile in)
             if (line_len != ptr->read_len)              // Seq and qual should have the same length
                 ERROR("Wrong quality string length\n", NULL);
         } break;
-        
+
         case '>':                                   // Fasta
             gzseek(in, -1, SEEK_CUR); break;
-        
+
         default:
             ERROR("Neither FastQ nor Fasta\n", NULL); break;
     }

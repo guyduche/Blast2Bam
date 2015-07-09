@@ -50,7 +50,7 @@ int main(int argc, char** argv)
     AppParamPtr app = NULL;
     int i, ret = 0, c = 0, option_index = 0;
     FILE* out = NULL;
-    static struct option long_options[] = 
+    static struct option long_options[] =
     {
         {"interleaved", no_argument, 0, 'p'},
         {"minAlignLength", required_argument, 0, 'W'},
@@ -86,7 +86,7 @@ int main(int argc, char** argv)
         }
     }
 
-    // Set default output to stdout	
+    // Set default output to stdout
     if (out == NULL) app->out = stdout;
 
     if (argc < optind + 3)
@@ -111,7 +111,7 @@ int main(int argc, char** argv)
     if (argc == optind + 4 && !app->inter)
     {
         app->fastq2 = argv[optind + 3]; // Get the second FastQ
-        if (!strcmp(app->fastq1, app->fastq2)) 
+        if (!strcmp(app->fastq1, app->fastq2))
             ERROR("FastQ_1 and FastQ_2 must be different\n", EXIT_FAILURE);
     }
 
