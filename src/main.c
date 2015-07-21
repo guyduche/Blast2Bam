@@ -108,11 +108,13 @@ int main(int argc, char** argv)
     app->fastq1 = argv[optind + 2];     // Get the first FastQ
 
     // A second FastQ file is present
-    if (argc == optind + 4 && !app->inter)
+    if (argc == optind + 4)
     {
+        if (app->inter)
+            ERROR("There should not be a second FastQ/Fasta file if the data is interleaved\n", EXIT_FAILURE);
         app->fastq2 = argv[optind + 3]; // Get the second FastQ
         if (!strcmp(app->fastq1, app->fastq2))
-            ERROR("FastQ_1 and FastQ_2 must be different\n", EXIT_FAILURE);
+            ERROR("FastQ/Fasta_1 and FastQ/Fasta_2 must be different\n", EXIT_FAILURE);
     }
 
     // Call to the main function of Blast2Sam
