@@ -70,6 +70,9 @@ int main(int argc, char** argv)
     // Create new AppParam
     app = safeCalloc(1, sizeof(AppParam));
 
+    // Set default minimum alignment length to automatic
+    app->minLen = -1;
+
     // Get program options
     while ((c = getopt_long(argc, argv,"ho:pR:W:z", long_options, &option_index)) != -1)
     {
@@ -121,8 +124,11 @@ int main(int argc, char** argv)
     ret = blastToSam(app);
 
     if (out != NULL) fclose(out);
-    if (app->readGroupID != NULL)
+    if (app->readGroup != NULL)
+    {
         free(app->readGroupID);
+        free(app->readGroup);
+    }
     free(app->pg_line);
     free(app);
     return ret;

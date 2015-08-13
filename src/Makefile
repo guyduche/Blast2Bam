@@ -1,4 +1,3 @@
-
 .PHONY: all clean
 CC = gcc
 CFLAGS = -c -O3 -Wall `xml2-config --cflags`

@@ -292,7 +292,7 @@ static void deallocItSam(IterationSamPtr itSam)
 
 
 /************************************************************************************/
-/*  Main function of BlastSam.c                                                     */
+/*  Read group ID function                                                          */
 /************************************************************************************/
 // Extract the ID of the read group. Useful for Sam metadata
 static char* readGroupID(char* readGroup)
@@ -313,6 +313,10 @@ static char* readGroupID(char* readGroup)
     return rgID;
 }
 
+
+/************************************************************************************/
+/*  Main function of BlastSam.c                                                     */
+/************************************************************************************/
 int blastToSam(AppParamPtr app)
 {
     xmlTextReaderPtr reader;

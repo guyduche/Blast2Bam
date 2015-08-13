@@ -1,0 +1,54 @@
+.PHONY: clean destroy bamfiles all
+.SHELL = /bin/bash
+BINDIR = ../../bin/
+SRCDIR = ../../src/
+SCRIPTDIR = ../scripts
+FASTQ = ERR732557.fastq.gz
+DB = m13mp18.fasta
+
+FIRST = 8
+LAST = 28
+INCREMENT = 2
+
+NUMBERS = $(shell seq ${FIRST} ${INCREMENT} ${LAST})
+
+# Make sure you have the last version of gnuplot
+
+all: bamfiles nbReads.png coverage.png
+
+nbReads.png:
+	gnuplot -c ${SCRIPTDIR}/nbReads.plt $(basename $@).svg \'nbReads.txt\' '(($$0*'${INCREMENT}')+'${FIRST}')' 5136
+	inkscape -z -y 1.0 -e $@ $(basename $@).svg
+
+coverage.png:
+	gnuplot -c ${SCRIPTDIR}/coverage.plt $(basename $@).svg \'coverage.txt\' '(($$0*'${INCREMENT}')+'${FIRST}')' 7249
+	inkscape -z -y 1.0 -e $@ $(basename $@).svg
+
+bamfiles: $(addprefix ${BINDIR}, blast2bam fastq2fasta) db.dict ${FASTQ} $(addsuffix .nin, ${DB})
+	$(foreach var, ${NUMBERS}, \
+		$(addprefix ${BINDIR}, fastq2fasta) ${FASTQ} | \
+		blastn -db ${DB} -num_threads 4 -word_size $(var) -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
+		$(addprefix ${BINDIR}, blast2bam) -R '@RG\tID:foo\tSM:sample' - db.dict ${FASTQ} | \
+		samtools view -Sub -F 0xF00 - | samtools sort - results.$(var) > results.$(var).bam ; \
+		samtools index results.$(var).bam ; \
+		samtools idxstats results.$(var).bam | paste - - >> nbReads.txt ; \
+		samtools depth results.$(var).bam > depth.$(var).txt ; \
+		wc -l depth.$(var).txt >> coverage.txt ; \
+		gnuplot -c ${SCRIPTDIR}/depth.plt depth.$(var).svg \'depth.$(var).txt\' ; \
+		inkscape -z -y 1.0 -e depth.$(var).png depth.$(var).svg ;)
+
+$(addprefix ${BINDIR}, blast2bam fastq2fasta):
+	(cd ${SRCDIR}; ${MAKE})
+
+db.dict: ${DB}
+	picard-tools CreateSequenceDictionary R=$< O=$@
+
+$(addsuffix .nin, ${DB}): ${DB}
+	makeblastdb -in $< -dbtype 'nucl'
+
+# Clean
+clean:
+	rm -f *.bam *.bam.bai db.dict *.nhr *.nin *.nsq *.txt *.svg *.png
+	
+destroy: clean
+	(cd ${SRCDIR}; ${MAKE} clean)

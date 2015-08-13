@@ -41,11 +41,11 @@ static void sq_line(AppParamPtr app, char* filename)
     int c, countSpace = 0;
     size_t lenStr = 0;
 
-    reader = safeFOpen(filename, "r");                      // Open the reference dictionary file (.dict)
+    reader = safeFOpen(filename, "r");                              // Open the reference dictionary file (.dict)
 
     do
     {
-        if (countSpace > 2 || !countSpace)                  // Skip the first line of the file and the end of the other lines
+        if (countSpace > 2 || !countSpace)                          // Skip the first line of the file and the end of the other lines
             do c = fgetc(reader); while (c != '\n' && c != EOF);
 
         lenStr = 0;
@@ -54,7 +54,7 @@ static void sq_line(AppParamPtr app, char* filename)
         c = fgetc(reader);
         lenStr++;
 
-        while (c != '\n' && c != EOF && countSpace <= 2)    // Keep only the reference name and its length
+        while (c != '\n' && c != EOF && countSpace <= 2)            // Keep only the reference name and its length
         {
             if (c == '\t') countSpace++;
             str = (char*) safeRealloc(str, lenStr+1);
@@ -63,31 +63,53 @@ static void sq_line(AppParamPtr app, char* filename)
             lenStr++;
         }
 
-        fwrite(str, sizeof(char), lenStr-1, app->out);      // Print the SQ line in the SAM file
+        fwrite(str, sizeof(char), lenStr-1, app->out);              // Print the SQ line in the SAM file
         free(str);
         if (c != EOF) fputc('\n', app->out);
 
-    } while (c != EOF);                                     // If there are more than one reference
+    } while (c != EOF);                                             // If there are more than one reference
 
     fclose(reader);
 }
 
-// Print the read group line
-static int rg_line(AppParamPtr app, char* readGroup)
+// Interpret the read group line: replace \t with '\t'
+static char* interpretRG(AppParamPtr app)
 {
-    if (strstr(readGroup, "@RG") != readGroup) return 1;    // Verify that the read group begins with @RG
-    if (strstr(readGroup, "\tID:") == NULL) return 1;       // Verify that the read group has an ID
-    fprintf(app->out, "%s\n", readGroup);                   // Print the read group in the SAM header
+    char *p, *q;
+    char* str = safeStrdup(app->readGroup);
+    
+    for (p = q = str; *p != '\0'; p++, q++)
+    {
+        if (*p == '\\')
+        {
+            p++;
+            if (*p == 't') *q = '\t';
+        }
+        else *q = *p;
+    }
+    *q = '\0';
+    return str;
+}
+
+// Print the read group line
+static int rg_line(AppParamPtr app)
+{
+    if (strstr(app->readGroup, "@RG") != app->readGroup) return 1;  // Verify that the read group begins with @RG
+    if (strstr(app->readGroup, "\tID:") == NULL) return 1;          // Verify that the read group has an ID
+    fprintf(app->out, "%s\n", app->readGroup);                      // Print the read group in the SAM header
     return 0;
 }
 
 // Print SAM header section
 int samHead(AppParamPtr app)
 {
-    sq_line(app, app->db);                                  // Print the SQ Line
-    if (app->readGroup != NULL)                             // If the read group is available and is correctly formatted, prints it
-        if (rg_line(app,app->readGroup) == 1) return 1;     // If the read group is incorrectly formatted, returns an error
-    fprintf(app->out, "%s\n", app->pg_line);                // Print the PG line
+    sq_line(app, app->db);                                          // Print the SQ Line
+    if (app->readGroup != NULL)                                     // If the read group is available and is correctly formatted, prints it
+    {
+        app->readGroup = interpretRG(app);                          // Interpret the read group
+        if (rg_line(app) == 1) return 1;                            // If the read group is incorrectly formatted, returns an error
+    }
+    fprintf(app->out, "%s\n", app->pg_line);                        // Print the PG line
     return 0;
 }
 
@@ -100,7 +122,7 @@ static int allowedToPrint(SamOutputPtr* samOut, int minLen, int countRec, int co
 {
     int minLenAuto[2] = {0, 0};
 
-    if (minLen)                                                                                          // Option W is set
+    if (minLen != -1)                                                                                    // Option W is set
         minLenAuto[0] = minLenAuto[1] = minLen;
     else                                                                                                 // If not given, the minimum alignment length is calculated based on the read length
     {
@@ -148,7 +170,7 @@ static int allowedToPrint(SamOutputPtr* samOut, int minLen, int countRec, int co
 void recordAnalysis(IterationSamPtr itSam, AppParamPtr app)
 {
     int i = 0, j = 0, len0 = 0, len1 = 0, countUnprint = 0, countUnprintGlobal = 0, countUnprintSec = 0;
-    double score = 0.0, bestScore = 2.0;
+    double score = 0.0, bestScore = 10.0;
     RecordSamPtr bestRecord = NULL;
     RecordSamPtr curRecord = NULL;
 
@@ -157,6 +179,7 @@ void recordAnalysis(IterationSamPtr itSam, AppParamPtr app)
         for (j = 0; j < itSam->samHits[i]->countRec; j++)   // Go through all the records
         {
             curRecord = itSam->samHits[i]->rsSam[j];
+            if (!i && !j) bestRecord = curRecord;
             score = 0.0;
 
             // CountUnprintSec is reset for each new HSP first
@@ -544,6 +567,13 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                     samLine->blastScore = samOut[k]->hsp->hsp_score;                                                            // AS metadata tag: Blast score
                     samLine->blastBitScore = samOut[k]->hsp->hsp_bit_score;                                                     // XB metadata tag: Blast bit score
                     samLine->blastEvalue = samOut[k]->hsp->hsp_evalue;                                                          // XE metadata tag: Blast E-Value
+                    
+                    // The mate is unmapped
+                    if (samOut[invk] != NULL && samOut[invk]->hsp == NULL)
+                    {
+                        samLine->rnext = "=";
+                        samLine->pnext = samLine->pos;
+                    }
                 }
 
                 // The read is unmapped
