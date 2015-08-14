@@ -3,7 +3,7 @@
 BINDIR = ../../bin/
 SRCDIR = ../../src/
 FASTQ = test_1.fastq.gz test_2.fastq.gz
-DB = hiv2.fasta
+DB = hiv.fasta
 
 all: bam_idx bamBWA_idx
 
