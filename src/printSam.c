@@ -31,45 +31,79 @@ History:
 #include "blastSam.h"
 
 /************************************************************************************/
-/*  Print SAM header                                                                */
+/*  SAM header                                                                      */
 /************************************************************************************/
-// Print the reference sequence dictionary (SQ lines)
-static void sq_line(AppParamPtr app, char* filename)
+// Extract the reference name
+static char* refName(FILE* reader)
+{
+    int c = 0;
+    size_t sizeStr = 0;
+    char* name = NULL;
+
+    c = fgetc(reader);                                          // Skip the ">"
+    if (c != '>') return NULL;
+
+    c = fgetc(reader);
+
+    while (c != ' ' && c != '\t' && c != '\n' && c != EOF)      // Keep only the reference name
+    {
+        sizeStr++;
+        name = (char*) safeRealloc(name, sizeStr+1);
+        name[sizeStr-1] = (char) c;
+        c = fgetc(reader);
+    }
+
+    name[sizeStr] = '\0';
+    do c = fgetc(reader); while (c != '\n' && c != EOF);        // Skip the rest of the line
+
+    return name;
+}
+
+// Extract the reference length
+static int refLen(FILE* reader)
+{
+    int c = 0, len = 0, end = 0;
+
+    while (!end && c != EOF)                                    // Until it is the end of the sequence and/or of the file
+    {
+        c = fgetc(reader);
+        if (c == '\n')
+        {
+            c = fgetc(reader);
+            if (c == '>')                                       // If there is another reference in the file
+            {
+                end = 1;
+                fseek(reader, -1, SEEK_CUR);
+            }
+            else if (c == EOF || c == '\n');                    // If this is the end of the file or if there is another '\n'
+            else len++;
+        }
+        else if (c == EOF);
+        else len++;
+    }
+    return len;
+}
+
+// Print the SQ lines
+static int sq_line(AppParamPtr app)
 {
     FILE* reader;
-    char* str = NULL;
-    int c, countSpace = 0;
-    size_t lenStr = 0;
+    char* name = NULL;
+    int len = 0;
 
-    reader = safeFOpen(filename, "r");                              // Open the reference dictionary file (.dict)
+    reader = safeFOpen(app->db, "r");                           // Open the reference file
 
-    do
+    while (!feof(reader))
     {
-        if (countSpace > 2 || !countSpace)                          // Skip the first line of the file and the end of the other lines
-            do c = fgetc(reader); while (c != '\n' && c != EOF);
+        if ((name = refName(reader)) == NULL) return 1;         // Get the reference name
+        len = refLen(reader);                                   // Get the length of the reference sequence
 
-        lenStr = 0;
-        countSpace = 0;
-        str = NULL;
-        c = fgetc(reader);
-        lenStr++;
-
-        while (c != '\n' && c != EOF && countSpace <= 2)            // Keep only the reference name and its length
-        {
-            if (c == '\t') countSpace++;
-            str = (char*) safeRealloc(str, lenStr+1);
-            str[lenStr-1] = (char) c;
-            c = fgetc(reader);
-            lenStr++;
-        }
-
-        fwrite(str, sizeof(char), lenStr-1, app->out);              // Print the SQ line in the SAM file
-        free(str);
-        if (c != EOF) fputc('\n', app->out);
-
-    } while (c != EOF);                                             // If there are more than one reference
+        fprintf(app->out, "@SQ\tSN:%s\tLN:%d\n", name, len);    // Print the SQ line in the SAM file
+        free(name);
+    }
 
     fclose(reader);
+    return 0;
 }
 
 // Interpret the read group line: replace \t with '\t'
@@ -77,7 +111,7 @@ static char* interpretRG(AppParamPtr app)
 {
     char *p, *q;
     char* str = safeStrdup(app->readGroup);
-    
+
     for (p = q = str; *p != '\0'; p++, q++)
     {
         if (*p == '\\')
@@ -103,7 +137,7 @@ static int rg_line(AppParamPtr app)
 // Print SAM header section
 int samHead(AppParamPtr app)
 {
-    sq_line(app, app->db);                                          // Print the SQ Line
+    if (sq_line(app) == 1) return 1;                                // Print the SQ Line
     if (app->readGroup != NULL)                                     // If the read group is available and is correctly formatted, prints it
     {
         app->readGroup = interpretRG(app);                          // Interpret the read group
@@ -567,7 +601,7 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                     samLine->blastScore = samOut[k]->hsp->hsp_score;                                                            // AS metadata tag: Blast score
                     samLine->blastBitScore = samOut[k]->hsp->hsp_bit_score;                                                     // XB metadata tag: Blast bit score
                     samLine->blastEvalue = samOut[k]->hsp->hsp_evalue;                                                          // XE metadata tag: Blast E-Value
-                    
+
                     // The mate is unmapped
                     if (samOut[invk] != NULL && samOut[invk]->hsp == NULL)
                     {

@@ -69,20 +69,26 @@ static IterationSamPtr hitRecord(
     }
 
     countHit = itSam->countHit;
-    countRec = ++(itSam->samHits[countHit-1]->countRec);
-    itSam->countRecGlobal++;
 
-    itSam->samHits[countHit-1]->rsSam = (RecordSamPtr*) safeRealloc(itSam->samHits[countHit-1]->rsSam, countRec * sizeof(RecordSamPtr));    // Create or append a given Hit record array
-    itSam->samHits[countHit-1]->rsSam[countRec-1] = (RecordSamPtr) safeCalloc(1, sizeof(RecordSam));                                        // Create a new record
-
-    samOut[0] = itSam->samHits[countHit-1]->rsSam[countRec-1]->samOut[0] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput));     // Create a structure to capture all the info concerning the first read
-    samOut[0]->query = rVar->reads[0];                                                                                          // Record the first read infos
-
-    // Only if paired end
-    if (hitSec != NULL)
+    if (rVar->end && rVar->tmpHitNb != countHit);
+    else if (hitSec != NULL && hitFirst->hit_def != NULL && hitSec->hit_def != NULL && strcmp(hitFirst->hit_def, hitSec->hit_def));
+    else
     {
-        samOut[1] = itSam->samHits[countHit-1]->rsSam[countRec-1]->samOut[1] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the second read
-        samOut[1]->query = rVar->reads[1];                                                                                      // Record the second read infos
+        countRec = ++(itSam->samHits[countHit-1]->countRec);
+        itSam->countRecGlobal++;
+
+        itSam->samHits[countHit-1]->rsSam = (RecordSamPtr*) safeRealloc(itSam->samHits[countHit-1]->rsSam, countRec * sizeof(RecordSamPtr));    // Create or append a given Hit record array
+        itSam->samHits[countHit-1]->rsSam[countRec-1] = (RecordSamPtr) safeCalloc(1, sizeof(RecordSam));                                        // Create a new record
+
+        samOut[0] = itSam->samHits[countHit-1]->rsSam[countRec-1]->samOut[0] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput));     // Create a structure to capture all the info concerning the first read
+        samOut[0]->query = rVar->reads[0];                                                                                          // Record the first read infos
+
+        // Only if paired end
+        if (rVar->hitTmp != NULL)
+        {
+            samOut[1] = itSam->samHits[countHit-1]->rsSam[countRec-1]->samOut[1] = (SamOutputPtr) safeCalloc(1, sizeof(SamOutput)); // Create a structure to capture all the info concerning the second read
+            samOut[1]->query = rVar->reads[1];                                                                                      // Record the second read infos
+        }
     }
 
     // Go there if the first read is unmapped
@@ -129,9 +135,12 @@ static IterationSamPtr hitRecord(
         // If there is no next reference hit, a new Hit structure is created and, at the next function call, the second read will be recorded as unmapped
         if (hitSec->next == NULL || !strcmp(hitFirst->hit_def, hitSec->next->hit_def))
         {
-            itSam->countHit++;
-            itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
-            itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
+            if (countHit != 1)
+            {
+                itSam->countHit++;
+                itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
+                itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
+            }
         }
 
         return hitRecord(hitFirst, hitSec->next, itSam, rVar);
@@ -171,18 +180,18 @@ static IterationSamPtr hitRecord(
         itSam->countHit++;
         itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
         itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
-        if (hitSec == NULL)             // Single end or the end of the hitSec list have been reached
+        if (hitSec == NULL || hitSec->next == NULL)     // Single end or the end of the hitSec list have been reached
         {
-            if (rVar->hitTmp == NULL)       // The second read is unmapped
+            if (rVar->hitTmp == NULL)                       // Single end
                 return hitRecord(hitFirst->next, NULL, itSam, rVar);
-            else                            // The second read is mapped somewhere. hitTmp is used to go back to the first reference hit of the second read
+            else                                            // The second read is mapped somewhere. hitTmp is used to go back to the first reference hit of the second read
                 return hitRecord(hitFirst->next, rVar->hitTmp, itSam, rVar);
         }
-        else                            // Paired end
+        else                                            // Paired end
             return hitRecord(hitFirst->next, hitSec->next, itSam, rVar);
     }
 
-    // If the second read is mapped
+    // If paired end
     if (rVar->hitTmp != NULL)
     {
         if (!rVar->end)
@@ -194,15 +203,16 @@ static IterationSamPtr hitRecord(
         // If the second read has more than one reference hit
         if (hitSec->next != NULL)
         {
-            // Go through all the previous hit records and stop if there is a reference name that matches the next reference
+/*            // Go through all the previous hit records and stop if there is a reference name that matches the next reference
             for (rVar->tmpHitNb = 0; rVar->tmpHitNb < countHit; rVar->tmpHitNb++)
-                if (!strcmp(hitSec->next->hit_def, itSam->samHits[rVar->tmpHitNb]->rsSam[0]->samOut[1]->rname)) break;
-
+                if (itSam->samHits[rVar->tmpHitNb]->rsSam[0]->samOut[0]->rname != NULL && !strcmp(hitSec->next->hit_def, itSam->samHits[rVar->tmpHitNb]->rsSam[0]->samOut[0]->rname))
+                    break;
+*/
             // Occurs only if no match have been found
             if (rVar->tmpHitNb == countHit)
             {
                 // Create a new Hit record
-                itSam->countHit++;
+                rVar->tmpHitNb = ++(itSam->countHit);
                 itSam->samHits = (SamHitPtr*) safeRealloc(itSam->samHits, itSam->countHit * sizeof(SamHitPtr)); // Append the Hit list
                 itSam->samHits[itSam->countHit-1] = (SamHitPtr) safeCalloc(1, sizeof(SamHit));
             }

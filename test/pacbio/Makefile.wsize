@@ -24,11 +24,11 @@ coverage.png:
 	gnuplot -c ${SCRIPTDIR}/coverage.plt $(basename $@).svg \'coverage.txt\' '(($$0*'${INCREMENT}')+'${FIRST}')' 4641652
 	inkscape -z -y 1.0 -e $@ $(basename $@).svg
 
-bamfiles: $(addprefix ${BINDIR}, blast2bam fastq2fasta) db.dict ${FASTQ} $(addsuffix .nin, ${DB})
+bamfiles: $(addprefix ${BINDIR}, blast2bam fastq2fasta) ${FASTQ} $(addsuffix .nin, ${DB})
 	$(foreach var, ${NUMBERS}, \
 		$(addprefix ${BINDIR}, fastq2fasta) ${FASTQ} | \
 		blastn -db ${DB} -num_threads 4 -word_size $(var) -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
-		$(addprefix ${BINDIR}, blast2bam) -R '@RG\tID:foo\tSM:sample' - db.dict ${FASTQ} | \
+		$(addprefix ${BINDIR}, blast2bam) -R '@RG\tID:foo\tSM:sample' - ${DB} ${FASTQ} | \
 		samtools view -Sub -F 0xF00 - | samtools sort - results.$(var) > results.$(var).bam ; \
 		samtools index results.$(var).bam ; \
 		samtools idxstats results.$(var).bam | paste - - >> nbReads.txt ; \
@@ -40,15 +40,12 @@ bamfiles: $(addprefix ${BINDIR}, blast2bam fastq2fasta) db.dict ${FASTQ} $(addsu
 $(addprefix ${BINDIR}, blast2bam fastq2fasta):
 	(cd ${SRCDIR}; ${MAKE})
 
-db.dict: ${DB}
-	picard-tools CreateSequenceDictionary R=$< O=$@
-
 $(addsuffix .nin, ${DB}): ${DB}
 	makeblastdb -in $< -dbtype 'nucl'
 
 # Clean
 clean:
-	rm -f *.bam *.bam.bai db.dict *.nhr *.nin *.nsq *.txt *.svg *.png
+	rm -f *.bam *.bam.bai *.nhr *.nin *.nsq *.txt *.svg *.png
 	
 destroy: clean
 	(cd ${SRCDIR}; ${MAKE} clean)

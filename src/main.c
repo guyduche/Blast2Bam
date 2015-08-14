@@ -107,7 +107,7 @@ int main(int argc, char** argv)
     }
 
     app->blastOut = argv[optind];       // Get Blast output
-    app->db = argv[optind + 1];         // Get the reference sequence dictionary
+    app->db = argv[optind + 1];         // Get the reference sequence
     app->fastq1 = argv[optind + 2];     // Get the first FastQ
 
     // A second FastQ file is present
