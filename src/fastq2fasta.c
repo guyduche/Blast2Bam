@@ -47,7 +47,7 @@ int main(int argc, char** argv)
     gzFile fp = NULL, fp2 = NULL;
     ShortReadPtr reads[2];
     FILE* out = NULL;
-    int c = 0, option_index = 0;
+    int c = 0, option_index = 0, fasta = 0;
 
     static struct option long_options[] =
     {
@@ -83,16 +83,16 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    fp = safeGzOpen(argv[optind], "r");             // Get the first FastQ
+    fp = initFastQ(&fasta, argv[optind]);             // Get the first FastQ
 
     if (argc == optind + 2)
-        fp2 = safeGzOpen(argv[optind + 1], "r");    // Get the second FastQ
+        fp2 = initFastQ(&fasta, argv[optind + 1]);    // Get the second FastQ
 
-    reads[0] = shortReadNext(fp);
+    reads[0] = shortReadNext(fp, fasta);
     while (reads[0] != NULL)
     {
         if (fp2 != NULL)
-            reads[1] = shortReadNext(fp2);
+            reads[1] = shortReadNext(fp2, fasta);
 
         fprintf(out, ">%s\n%s\n", reads[0]->name, reads[0]->seq);
         if (fp2 != NULL)
@@ -101,7 +101,7 @@ int main(int argc, char** argv)
             shortReadFree(reads[1]);
         }
         shortReadFree(reads[0]);
-        reads[0] = shortReadNext(fp);
+        reads[0] = shortReadNext(fp, fasta);
     }
 
     gzclose(fp);

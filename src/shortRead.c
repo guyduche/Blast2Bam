@@ -32,20 +32,36 @@ History:
 #include "shortRead.h"
 
 /************************************************************************************/
+/*  Initialise the query file                                                       */
+/************************************************************************************/
+gzFile initFastQ(int* fasta, char* filename)
+{
+    gzFile in = safeGzOpen(filename, "r");
+    switch (gzgetc(in))
+    {
+        case '@': break;
+        case '>': *fasta = 1; break;
+        default: ERROR("Neither FastQ nor Fasta\n", NULL); break;
+    }
+    return in;
+}
+
+
+/************************************************************************************/
 /*  FastQ parsing                                                                   */
 /************************************************************************************/
 // Get one line of the file
-static char* gzReadLine(gzFile in, size_t* line_len)
+static char* gzReadLine(gzFile in, size_t* line_len, int marked)
 {
     size_t len = 0;
-    int endsWithCR = 0;
+    int end = 0, c = 0;
     char* buffer = NULL, *line = NULL;
     *line_len = 0;
 
-    while (!endsWithCR) // Until a '\n' is found
+    while (!end)
     { // Useful in case BUFSIZ is too small to get the whole line
         buffer = (char*) safeMalloc(BUFSIZ);
-        if (gzgets(in, buffer, BUFSIZ) == NULL) return NULL;
+        if (gzgets(in, buffer, BUFSIZ-1) == NULL) return NULL;
         if (gzeof(in)) return NULL;
 
         len = strlen(buffer);
@@ -53,7 +69,20 @@ static char* gzReadLine(gzFile in, size_t* line_len)
         if (buffer[len-1] == '\n')
         {
             buffer[len-1] = '\0';
-            endsWithCR = 1;
+            if (marked)
+            {
+                c = gzgetc(in);
+                switch (c)
+                {
+                    case '>': case '\n': case -1: end = 1; break;
+                    default:
+                    {
+                        buffer[len-1] = c;
+                        buffer[len] = '\0';
+                    }
+                }
+            }
+            else end = 1;
         }
 
         line = (char*) safeRealloc(line, *line_len + len + 1);
@@ -68,38 +97,27 @@ static char* gzReadLine(gzFile in, size_t* line_len)
 }
 
 // Get the infos of one read
-ShortReadPtr shortReadNext(gzFile in)
+ShortReadPtr shortReadNext(gzFile in, int fasta)
 {
     size_t line_len = 0;
     ShortReadPtr ptr = NULL;
 
     ptr = (ShortReadPtr) safeCalloc(1, sizeof(ShortRead));
 
-    ptr->name = gzReadLine(in, &line_len);          // Get the read name
-    if (ptr->name == NULL)
-        return NULL;
-    else
-        ptr->name = shortName(ptr->name + 1);       // Put the short version of the read name in the ShortRead structure
-    ptr->seq = gzReadLine(in, &line_len);           // Get the sequence
+    ptr->name = gzReadLine(in, &line_len, 0);       // Get the read name
+    if (ptr->name == NULL) return NULL;
+    else ptr->name = shortName(ptr->name);          // Put the short version of the read name in the ShortRead structure
+    
+    ptr->seq = gzReadLine(in, &line_len, fasta);    // Get the sequence
     ptr->read_len = line_len;
 
-    switch (gzgetc(in))
+    if (!fasta)
     {
-        case -1: break;                             // End of file
-
-        case '+':                                   // FastQ
-        {
-            free(gzReadLine(in, &line_len));            // Discard the third line
-            ptr->qual = gzReadLine(in, &line_len);      // Get the sequence quality
-            if (line_len != ptr->read_len)              // Seq and qual should have the same length
-                ERROR("Wrong quality string length\n", NULL);
-        } break;
-
-        case '>':                                   // Fasta
-            gzseek(in, -1, SEEK_CUR); break;
-
-        default:
-            ERROR("Neither FastQ nor Fasta\n", NULL); break;
+        free(gzReadLine(in, &line_len, 0));         // Discard the third line
+        ptr->qual = gzReadLine(in, &line_len, 0);   // Get the sequence quality
+        gzgetc(in);
+        if (line_len != ptr->read_len)              // Seq and qual should have the same length
+            ERROR("Wrong quality string length\n", NULL);
     }
 
     return ptr;
@@ -111,8 +129,9 @@ ShortReadPtr shortReadNext(gzFile in)
 void shortReadFree(ShortReadPtr ptr)
 {
     if (ptr == NULL) return;
-    free(ptr->name - 1);
+    free(ptr->name);
     free(ptr->seq);
-    free(ptr->qual);
+    if (ptr->qual != NULL)
+        free(ptr->qual);
     free(ptr);
 }

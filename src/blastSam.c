@@ -240,11 +240,11 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
         itSec = parseIteration(reader);         // Get the Blast results of the second in pair
         rVar->hitTmp = itSec->iteration_hits;   // Pointer to the first reference hit of the second in pair
 
-        rVar->reads[0] = shortReadNext(fp);     // Get the first in pair infos from the first fastQ
-        if (app->inter)                         // Get the second in pair infos either from the same fastQ if interleaved or from the second fastQ
-            rVar->reads[1] = shortReadNext(fp);
+        rVar->reads[0] = shortReadNext(fp, app->fasta);                 // Get the first in pair infos from the first fastQ
+        if (app->inter)                                                 // Get the second in pair infos either from the same fastQ if interleaved or from the second fastQ
+            rVar->reads[1] = shortReadNext(fp, app->fasta);
         else
-            rVar->reads[1] = shortReadNext(fp2);
+            rVar->reads[1] = shortReadNext(fp2, app->fasta);
 
         itSam = hitRecord(itFirst->iteration_hits, itSec->iteration_hits, itSam, rVar); // Record the results of the pair of reads together
         recordAnalysis(itSam, app);                                                     // Analyse the records
@@ -260,7 +260,7 @@ static IterationSamPtr iterationRecord(xmlTextReaderPtr reader, gzFile fp, gzFil
     else
     {
         itFirst = parseIteration(reader);                               // Get the Blast results
-        rVar->reads[0] = shortReadNext(fp);                             // Get the read's infos from the fastQ
+        rVar->reads[0] = shortReadNext(fp, app->fasta);                 // Get the read's infos from the fastQ
         itSam = hitRecord(itFirst->iteration_hits, NULL, itSam, rVar);  // Record the results
         recordAnalysis(itSam, app);                                     // Analyse the records
         printSam(itSam, app);                                           // Print the read in the alignment section of the SAM file
@@ -346,16 +346,16 @@ int blastToSam(AppParamPtr app)
     if (samHead(app) == 1)                                      // Print the Sam header
         ERROR("Error while printing the Sam header\n", 1);
 
-    fp = safeGzOpen(app->fastq1, "r");                          // Open the first fastQ
+    fp = initFastQ(&(app->fasta), app->fastq1);                 // Open the first fastQ
 
     if (app->fastq2 != NULL)
-        fp2 = safeGzOpen(app->fastq2, "r");                     // Open the second fastQ if there is one
+        fp2 = initFastQ(&(app->fasta), app->fastq2);            // Open the second fastQ if there is one
 
     if (app->readGroup != NULL)
         app->readGroupID = readGroupID(app->readGroup);         // Extract the ID from the read group
 
     // Go through all the reads (iterations) of the XML output
-    while (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "Iteration"))
+    while (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "Iteration") && !gzeof(fp))
     {
         itSam = iterationRecord(reader, fp, fp2, app);
         if (itSam != NULL)

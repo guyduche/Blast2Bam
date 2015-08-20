@@ -42,6 +42,7 @@ typedef struct AppParam
     int inter;                  // Interleaved option (-p)
     int posOnChr;               // Position based on the reference name (-z)
     int minLen;                 // Minimum alignment length accepted (-W)
+    int fasta;                  // Fasta file
     char* pg_line;              // @PG line of SAM header
     char* readGroup;            // Read group (-R)
     char* readGroupID;          // Read group ID

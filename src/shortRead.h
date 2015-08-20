@@ -44,7 +44,8 @@ typedef struct ShortRead
 /************************************************************************************/
 /*  Prototypes                                                                      */
 /************************************************************************************/
-ShortReadPtr shortReadNext(gzFile in);
+gzFile initFastQ(int* fasta, char* filename);
+ShortReadPtr shortReadNext(gzFile in, int fasta);
 void shortReadFree(ShortReadPtr ptr);
 
 #endif // SHORTREAD_H_INCLUDED
