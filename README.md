@@ -34,7 +34,7 @@ $ fastq2fasta [options] FastQ_1 [FastQ_2] > out.fasta
 ### Blast2bam
 
 ```bash
-$ blast2bam [options] blast.xml ref.dict FastQ_1 [FastQ_2] > out.sam
+$ blast2bam [options] blast.xml ref.fasta FastQ_1 [FastQ_2] > out.sam
 ```
 
 # Options

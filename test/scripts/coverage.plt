@@ -1,7 +1,7 @@
-set term svg size 600, 400
+set term svg size 300, 200
 set size 1, 1
-set xlabel "word size"
-set ylabel "coverage (%)"
+set xlabel "BLAST seed length"
+set ylabel "Coverage (%)"
 unset key
 set style data linespoint
 set output ARG1
