@@ -4,7 +4,7 @@
 
 **Fastq2fasta** converts single or paired end fastQ in a single fasta file for Blastn input.
 
-**Blast2Bam** uses the XML results of Blastn, a reference dictionnary and the fastQ or fasta file(s) to output a SAM file.
+**Blast2Bam** uses the XML results of Blastn, the reference and the fastQ or fasta file(s) to output a SAM file.
 
 In case of paired end data, Blast results from the first and second fastQ/fasta are paired in the SAM output.
 
@@ -54,7 +54,7 @@ $ blast2bam [options] blast.xml ref.fasta FastQ_1 [FastQ_2] > out.sam
 <tr><th>Option</th><th>Description</th></tr>
 <tr><th>-o FILE</th><td>File output. Default: stdout.</td></tr>
 <tr><th>-p</th><td>Interleaved. The input fastQ/fasta is an interleaved list of sequences forward and reverse.</td></tr>
-<tr><th>-R STR</th><td>Read group header line. Should look like this : "@RG\tID:foo\t[...]".</td></tr>
+<tr><th>-R STR</th><td>Read group header line. Should look like this : `@RG\tID:foo\t[...]`.</td></tr>
 <tr><th>-W INT</th><td>Minimum alignment length. The alignment is displayed only if its length is greater than INT. Default: minimum length calculated based on read length.</td></tr>
 <tr><th>-z</th><td>Adjusted position. The position of the alignment is adjusted to the position of the reference.</td></tr>
 <tr><th>-h</th><td>Help</td></tr>
