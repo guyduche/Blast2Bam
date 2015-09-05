@@ -45,7 +45,7 @@ DB = hiv.fasta
 all: results.bam resultsBWA.bam
 
 # BLAST
-results.bam: db.dict ${FASTQ} $(addsuffix .nin, ${DB})
+results.bam: ${FASTQ} $(addsuffix .nin, ${DB})
 	fastq2fasta ${FASTQ} | blastn -db ${DB} -outfmt 5 | \
 	blast2bam - ${DB} ${FASTQ} | samtools view -Sb -F 0xF00 - > $@
 
