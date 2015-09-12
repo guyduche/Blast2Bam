@@ -42,6 +42,7 @@ typedef struct AppParam
     int inter;                  // Interleaved option (-p)
     int posOnChr;               // Position based on the reference name (-z)
     int minLen;                 // Minimum alignment length accepted (-W)
+    int shortCigar;             // Short version of the CIGAR string (-c)
     int fasta;                  // Fasta file
     char* pg_line;              // @PG line of SAM header
     char* readGroup;            // Read group (-R)
@@ -61,7 +62,7 @@ typedef struct AppParam
 typedef struct CigarElement
 {
     int count;                  // Number of times an alignment event is encountered before another one occurs
-    char symbol;                // Comprised in {I, D, N, X, =}
+    char symbol;                // Comprised in {I, D, N, X, =, M}
 } CigarElement,*CigarElementPtr;
 
 // CIGAR string

@@ -303,7 +303,7 @@ void recordAnalysis(IterationSamPtr itSam, AppParamPtr app)
             count++, pos++; \
         pos--;}
 
-static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
+static CigarPtr cigarStrBuilding(SamOutputPtr samOut, AppParamPtr app)
 {
     int pos = 0, count = 0;
     size_t queryLength = samOut->query->read_len;
@@ -331,12 +331,19 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut)
         else if (hsp->hsp_qseq[pos] == '-')
             CSTRMACRO('D', (hsp->hsp_qseq[pos] == '-'))                             // Count the number of deletions
 
-        else if (hsp->hsp_hseq[pos] == hsp->hsp_qseq[pos])
-            CSTRMACRO('=', (hsp->hsp_hseq[pos] == hsp->hsp_qseq[pos]))              // Count the number of matches
-
         else
-            CSTRMACRO('X', (hsp->hsp_hseq[pos] != '-' && hsp->hsp_qseq[pos] != '-' && hsp->hsp_hseq[pos] != hsp->hsp_qseq[pos]))    // Count the number of mismatches
-
+        {
+            if (app->shortCigar)
+                CSTRMACRO('M', (hsp->hsp_hseq[pos] != '-' && hsp->hsp_qseq[pos] != '-'))
+            else
+            {
+                if (hsp->hsp_hseq[pos] == hsp->hsp_qseq[pos])
+                    CSTRMACRO('=', (hsp->hsp_hseq[pos] == hsp->hsp_qseq[pos]))      // Count the number of matches
+                else
+                    CSTRMACRO('X', (hsp->hsp_hseq[pos] != '-' && hsp->hsp_qseq[pos] != '-' && hsp->hsp_hseq[pos] != hsp->hsp_qseq[pos]))    // Count the number of mismatches
+            }
+        }
+        
         if (cigar->elements[cigar->size-1]->count >= 100 && cigar->elements[cigar->size-1]->symbol == 'D')
             cigar->elements[cigar->size-1]->symbol = 'N';                           // If there is more than a hundred deletion at a time, it is considered a skipped region
 
@@ -593,7 +600,7 @@ void printSam(IterationSamPtr itSam, AppParamPtr app)
                     samLine->refName = shortName(samOut[k]->rname);                                                             // Put a short version of the reference name in samLine
                     samLine->pos = (samLine->flag & SAM_REVERSE ? samOut[k]->hsp->hsp_hit_to : samOut[k]->hsp->hsp_hit_from);   // POS is the leftmost position of the read alignment on the reference
                     samLine->pos += posRef;                                                                                     // Adjust the position to the first position of the reference (-z)
-                    samLine->cigarStr = cigarStrBuilding(samOut[k]);                                                            // Build the CIGAR string
+                    samLine->cigarStr = cigarStrBuilding(samOut[k], app);                                                       // Build the CIGAR string
                     samLine->mapq = 60;                                                                                         // MAPQ
                     samLine->tlen = itSam->samHits[i]->rsSam[j]->tlen;                                                          // TLEN: distance between the first alignment position of both reads
                     if (samLine->tlen && samLine->flag & SAM_REVERSE)

@@ -40,6 +40,7 @@ static void usage(FILE* out)
     fprintf(out, " --interleaved    | -p            Interleaved data\n");
     fprintf(out, " --readGroup      | -R STR        Read group header line '@RG\\tID:foo'\n");
     fprintf(out, " --minAlignLength | -W INT        Discard alignments shorter than [INT]\n");
+    fprintf(out, " --shortCigar     | -c            Short version of the CIGAR string ('M' instead of '=' and 'X')\n");
     fprintf(out, " --posOnChr       | -z            Adjust the alignment position to the first position of the reference\n");
     fprintf(out, " --help           | -h            Get help (this screen)\n");
     fprintf(out, "\n\n");
@@ -52,11 +53,12 @@ int main(int argc, char** argv)
     FILE* out = NULL;
     static struct option long_options[] =
     {
-        {"interleaved", no_argument, 0, 'p'},
-        {"minAlignLength", required_argument, 0, 'W'},
-        {"posOnChr", no_argument, 0, 'z'},
         {"output", required_argument, 0, 'o'},
+        {"interleaved", no_argument, 0, 'p'},
         {"readGroup", required_argument, 0, 'R'},
+        {"minAlignLength", required_argument, 0, 'W'},
+        {"shortCigar", no_argument, 0, 'c'},
+        {"posOnChr", no_argument, 0, 'z'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
@@ -74,7 +76,7 @@ int main(int argc, char** argv)
     app->minLen = -1;
 
     // Get program options
-    while ((c = getopt_long(argc, argv,"ho:pR:W:z", long_options, &option_index)) != -1)
+    while ((c = getopt_long(argc, argv,"o:pR:W:czh", long_options, &option_index)) != -1)
     {
         switch (c)
         {
@@ -82,6 +84,7 @@ int main(int argc, char** argv)
             case 'p': app->inter = 1; break;                                            // Interleaved
             case 'R': app->readGroup = optarg; break;                                   // Read group
             case 'W': app->minLen = (int) strtol(optarg, NULL, 10); break;              // Minimum alignment length
+            case 'c': app->shortCigar = 1; break;                                       // Short version of the CIGAR string
             case 'z': app->posOnChr = 1; break;                                         // Alignment position adjusted to the position of the reference
             case 'h': usage(stderr); return EXIT_SUCCESS; break;                        // Help
             case ':': fprintf(stderr, "Option -%c requires an argument\n", optopt); return EXIT_FAILURE; break;
