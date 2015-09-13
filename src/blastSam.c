@@ -325,6 +325,28 @@ static char* readGroupID(char* readGroup)
 
 
 /************************************************************************************/
+/*  Count the total number of reads                                                 */
+/************************************************************************************/
+int countReads(gzFile fp, AppParamPtr app)
+{
+    int nbReads = 0, i = 0;
+    gzrewind(fp);
+    while (!gzeof(fp))
+    {
+        if (app->fasta)
+            {if (gzgetc(fp) == '>') nbReads++;}
+        else
+            {if (!(++i % 4)) nbReads++;}
+        
+        while (!gzeof(fp) && gzgetc(fp) != '\n');
+    }
+
+    gzseek(fp, 1, SEEK_SET);
+    return nbReads;
+}
+
+
+/************************************************************************************/
 /*  Main function of BlastSam.c                                                     */
 /************************************************************************************/
 int blastToSam(AppParamPtr app)
@@ -333,6 +355,8 @@ int blastToSam(AppParamPtr app)
     gzFile fp = NULL, fp2 = NULL;
     BlastOutputPtr blastOP = NULL;
     IterationSamPtr itSam = NULL;
+    int i = 0;
+    double tenPercentReads = 0.0;
 
     reader = safeXmlNewTextReaderFilename(app->blastOut);       // Initialize the XML parsing
 
@@ -347,6 +371,7 @@ int blastToSam(AppParamPtr app)
         ERROR("Error while printing the Sam header\n", 1);
 
     fp = initFastQ(&(app->fasta), app->fastq1);                 // Open the first fastQ
+    tenPercentReads = (double)countReads(fp, app) / 10;
 
     if (app->fastq2 != NULL)
         fp2 = initFastQ(&(app->fasta), app->fastq2);            // Open the second fastQ if there is one
@@ -354,13 +379,23 @@ int blastToSam(AppParamPtr app)
     if (app->readGroup != NULL)
         app->readGroupID = readGroupID(app->readGroup);         // Extract the ID from the read group
 
+    fputs("Progress: ", stderr);
+
     // Go through all the reads (iterations) of the XML output
     while (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "Iteration") && !gzeof(fp))
     {
         itSam = iterationRecord(reader, fp, fp2, app);
         if (itSam != NULL)
             deallocItSam(itSam);
+
+        i++;
+        if (i > tenPercentReads)
+        {
+            fputc('=', stderr);
+            i = 0;
+        }
     }
+    fputs(">\n", stderr);
 
     gzclose(fp);
     if (fp2 != NULL)
