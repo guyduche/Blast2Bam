@@ -333,15 +333,15 @@ int countReads(gzFile fp, AppParamPtr app)
     gzrewind(fp);
     while (!gzeof(fp))
     {
-        if (app->fasta)
-            {if (gzgetc(fp) == '>') nbReads++;}
-        else
-            {if (!(++i % 4)) nbReads++;}
+        if (app->fasta)                                 // If the input is a fasta file
+            {if (gzgetc(fp) == '>') nbReads++;}         // The number of reads equals the number of '>'
+        else                                            // If the input is a fastQ file
+            {if (!(++i % 4)) nbReads++;}                // Four lines equal one read
         
-        while (!gzeof(fp) && gzgetc(fp) != '\n');
+        while (!gzeof(fp) && gzgetc(fp) != '\n');       // Discard the rest of the line
     }
 
-    gzseek(fp, 1, SEEK_SET);
+    gzseek(fp, 1, SEEK_SET);                            // Get back to the second character of the file
     return nbReads;
 }
 
@@ -356,7 +356,7 @@ int blastToSam(AppParamPtr app)
     BlastOutputPtr blastOP = NULL;
     IterationSamPtr itSam = NULL;
     int i = 0;
-    double tenPercentReads = 0.0;
+    double fivePercentReads = 0.0;
 
     reader = safeXmlNewTextReaderFilename(app->blastOut);       // Initialize the XML parsing
 
@@ -371,7 +371,6 @@ int blastToSam(AppParamPtr app)
         ERROR("Error while printing the Sam header\n", 1);
 
     fp = initFastQ(&(app->fasta), app->fastq1);                 // Open the first fastQ
-    tenPercentReads = (double)countReads(fp, app) / 10;
 
     if (app->fastq2 != NULL)
         fp2 = initFastQ(&(app->fasta), app->fastq2);            // Open the second fastQ if there is one
@@ -379,23 +378,24 @@ int blastToSam(AppParamPtr app)
     if (app->readGroup != NULL)
         app->readGroupID = readGroupID(app->readGroup);         // Extract the ID from the read group
 
+    fivePercentReads = (double)countReads(fp, app) / 20;        // Number equivalent to 5% of the reads
     fputs("Progress: ", stderr);
 
     // Go through all the reads (iterations) of the XML output
     while (!xmlStrcasecmp(xmlTextReaderConstName(reader), (xmlChar*) "Iteration") && !gzeof(fp))
     {
-        itSam = iterationRecord(reader, fp, fp2, app);
+        itSam = iterationRecord(reader, fp, fp2, app);          // Records the reads, their results and prints them in a SAM file
         if (itSam != NULL)
             deallocItSam(itSam);
 
         i++;
-        if (i > tenPercentReads)
+        if (i > fivePercentReads)                               // If the number of reads analyzed is superior to 5% of the total number of reads
         {
-            fputc('=', stderr);
+            fputc('=', stderr);                                 // Display some progress
             i = 0;
         }
     }
-    fputs(">\n", stderr);
+    fputs(">\n", stderr);                                       // End of the progress bar
 
     gzclose(fp);
     if (fp2 != NULL)
