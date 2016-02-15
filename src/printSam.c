@@ -45,7 +45,7 @@ static char* refName(FILE* reader)
 
     c = fgetc(reader);
 
-    while (c != ' ' && c != '\t' && c != '\n' && c != EOF)      // Keep only the reference name
+    while (c != ' ' && c != '\t' && c != '\n' && c != '\r' && c != EOF)      // Keep only the reference name
     {
         sizeStr++;
         name = (char*) safeRealloc(name, sizeStr+1);
@@ -54,7 +54,7 @@ static char* refName(FILE* reader)
     }
 
     name[sizeStr] = '\0';
-    do c = fgetc(reader); while (c != '\n' && c != EOF);        // Skip the rest of the line
+    while (c != '\n' && c != EOF) c = fgetc(reader);            // Skip the rest of the line
 
     return name;
 }
@@ -75,10 +75,10 @@ static int refLen(FILE* reader)
                 end = 1;
                 fseek(reader, -1, SEEK_CUR);
             }
-            else if (c == EOF || c == '\n');                    // If this is the end of the file or if there is another '\n'
+            else if (c == EOF || c == '\n' || c == '\r');       // If this is the end of the file or if there is another '\n'
             else len++;
         }
-        else if (c == EOF);
+        else if (c == EOF || c == '\r');
         else len++;
     }
     return len;
