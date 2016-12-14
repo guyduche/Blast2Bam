@@ -365,7 +365,7 @@ static CigarPtr cigarStrBuilding(SamOutputPtr samOut, AppParamPtr app)
 
 
 /************************************************************************************/
-/*  Get the reverse complement of a sequence                                        */
+/*  Sequence functions                                                              */
 /************************************************************************************/
 static char* revStr(char* oldStr)
 {
@@ -381,10 +381,24 @@ static char* revStr(char* oldStr)
             case 'T': case 't' : newStr[i] = 'A'; break;
             case 'C': case 'c' : newStr[i] = 'G'; break;
             case 'G': case 'g' : newStr[i] = 'C'; break;
-            default: newStr[i] = oldStr[l]; break;  // If not in {ATCG}, keep the same char
+            case 'U': case 'u' : newStr[i] = 'A'; break;
+            default: newStr[i] = oldStr[l]; break;  // If not in {ATCGU}, keep the same char
         }
     }
     return newStr;
+}
+
+// Used for SAMtools compatibility
+static void trSeq(char* seq)
+{
+    size_t i = 0;
+    int l = strlen(seq);
+
+    for (i = 0; i < l; i++)
+    {
+        if (seq[i] == 'U' || seq[i] == 'u')
+            seq[i] = 'T';
+    }
 }
 
 
@@ -486,6 +500,7 @@ static void printSamLine (AppParamPtr app, SamLinePtr samLine)
     {
         seq = revStr(samLine->seq);
         fputs(seq, app->out);
+        free(seq);
         fputc('\t', app->out);
 
         qualLen = strlen(samLine->qual);
@@ -494,6 +509,7 @@ static void printSamLine (AppParamPtr app, SamLinePtr samLine)
     }
     else                                                                                            // If mapped on the forward strand, print SEQ and QUAL as they came out of the sequencer
     {
+        trSeq(samLine->seq);
         fputs(samLine->seq, app->out);
         fputc('\t', app->out);
         fputs(samLine->qual, app->out);
