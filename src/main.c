@@ -80,7 +80,7 @@ int main(int argc, char** argv)
     {
         switch (c)
         {
-            case 'o': app->out = out = safeFOpen(optarg, "a"); break;                   // Program output
+            case 'o': app->out = out = safeFOpen(optarg, "w"); break;                   // Program output
             case 'p': app->inter = 1; break;                                            // Interleaved
             case 'R': app->readGroup = optarg; break;                                   // Read group
             case 'W': app->minLen = (int) strtol(optarg, NULL, 10); break;              // Minimum alignment length
