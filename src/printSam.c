@@ -79,6 +79,11 @@ static int refLen(FILE* reader)
             else len++;
         }
         else if (c == EOF || c == '\r');
+        else if (c == '>')
+        {
+            end = 1;
+            fseek(reader, -1, SEEK_CUR);
+        }
         else len++;
     }
     return len;
