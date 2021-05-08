@@ -29,7 +29,7 @@ bamfiles: $(addprefix ${BINDIR}, blast2bam fastq2fasta) ${FASTQ} $(addsuffix .ni
 		$(addprefix ${BINDIR}, fastq2fasta) ${FASTQ} | \
 		blastn -db ${DB} -num_threads 4 -word_size $(var) -outfmt 5 | \
 		$(addprefix ${BINDIR}, blast2bam) -R '@RG\tID:foo\tSM:sample' - ${DB} ${FASTQ} | \
-		samtools view -Sub -F 0xF00 - | samtools sort - results.$(var) > results.$(var).bam ; \
+		samtools view -Sub -F 0xF00 - | samtools sort - > results.$(var).bam ; \
 		samtools index results.$(var).bam ; \
 		samtools idxstats results.$(var).bam | paste - - >> nbReads.txt ; \
 		samtools depth results.$(var).bam > depth.$(var).txt ; \
