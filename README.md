@@ -1,9 +1,5 @@
 # Blast2Bam
 
-##### With FastQ or Fasta input, map sequences with NCBI/Blastn and output the results in SAM/BAM format.
-
-**Fastq2fasta** converts single or paired end fastQ in a single fasta file for Blastn input.
-
 **Blast2Bam** uses the XML results of Blastn, the reference and the fastQ or fasta file(s) to output a SAM file.
 
 In case of paired end data, Blast results from the first and second fastQ/fasta are paired in the SAM output.
@@ -26,30 +22,11 @@ $ make
 
 # Usage
 
-### Fastq2fasta
-
-```bash
-$ fastq2fasta [options] FastQ_1 [FastQ_2] > out.fasta
-```
-
-### Blast2bam
-
 ```bash
 $ blast2bam [options] blast.xml ref.fasta FastQ_1 [FastQ_2] > out.sam
 ```
 
 # Options
-
-### Fastq2fasta
-
-<table>
-<tr><th>Option</th><th>Description</th></tr>
-<tr><th>-o FILE</th><td>File output. Default: stdout.</td></tr>
-<tr><th>-h</th><td>Help</td></tr>
-</table>
-
-
-### Blast2bam
 
 <table>
 <tr><th>Option</th><th>Description</th></tr>
@@ -68,20 +45,21 @@ $ blast2bam [options] blast.xml ref.fasta FastQ_1 [FastQ_2] > out.sam
 
 ```Makefile
 .SHELL = /bin/bash
-BINDIR = ../../bin/
-SRCDIR = ../../src/
+BINDIR = ../../bin
+SRCDIR = ../../src
+FF = fastq2fasta
 FASTQ = test_1.fastq.gz test_2.fastq.gz
 DB = hiv.fasta
 
-results.sam: $(addprefix ${BINDIR}, blast2bam fastq2fasta) ${FASTQ} $(addsuffix .nin, ${DB})
-	$(addprefix ${BINDIR}, fastq2fasta) ${FASTQ} | \
+results.bam: ${BINDIR}/blast2bam ${FASTQ} ${DB}.nin
+	${FF} ${FASTQ} | \
 	blastn -db ${DB} -num_threads 4 -word_size 8 -outfmt 5 | \
-	$(addprefix ${BINDIR}, blast2bam) -o $@ -R '@RG\tID:foo\tSM:sample' - ${DB} ${FASTQ}
+	${BINDIR}/blast2bam -o $@ -R '@RG\tID:foo\tSM:sample' - ${DB} ${FASTQ}
 
-$(addprefix ${BINDIR}, blast2bam fastq2fasta):
+${BINDIR}/blast2bam:
 	(cd ${SRCDIR}; ${MAKE})
 
-$(addsuffix .nin,${DB}): ${DB}
+${DB}.nin: ${DB}
 	makeblastdb -in $< -dbtype 'nucl'
 ```
 

@@ -1,8 +1,9 @@
 .PHONY: clean destroy bamfiles all
 .SHELL = /bin/bash
-BINDIR = ../../bin/
-SRCDIR = ../../src/
+BINDIR = ../../bin
+SRCDIR = ../../src
 SCRIPTDIR = ../scripts
+FF = fastq2fasta
 FASTQ = ERR732557.fastq.gz
 DB = m13mp18.fasta
 
@@ -24,11 +25,11 @@ coverage.png:
 	gnuplot -c ${SCRIPTDIR}/coverage.plt $(basename $@).svg \'coverage.txt\' '(($$0*'${INCREMENT}')+'${FIRST}')' 7249
 	inkscape -z -y 1.0 -e $@ $(basename $@).svg
 
-bamfiles: $(addprefix ${BINDIR}, blast2bam fastq2fasta) ${FASTQ} $(addsuffix .nin, ${DB})
+bamfiles: ${BINDIR}/blast2bam ${FASTQ} ${DB}.nin
 	$(foreach var, ${NUMBERS}, \
-		$(addprefix ${BINDIR}, fastq2fasta) ${FASTQ} | \
+		${FF} ${FASTQ} | \
 		blastn -db ${DB} -num_threads 4 -word_size $(var) -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
-		$(addprefix ${BINDIR}, blast2bam) -R '@RG\tID:foo\tSM:sample' - ${DB} ${FASTQ} | \
+		${BINDIR}/blast2bam -R '@RG\tID:foo\tSM:sample' - ${DB} ${FASTQ} | \
 		samtools view -Sub -F 0xF00 - | samtools sort - > results.$(var).bam ; \
 		samtools index results.$(var).bam ; \
 		samtools idxstats results.$(var).bam | paste - - >> nbReads.txt ; \
@@ -37,10 +38,10 @@ bamfiles: $(addprefix ${BINDIR}, blast2bam fastq2fasta) ${FASTQ} $(addsuffix .ni
 		gnuplot -c ${SCRIPTDIR}/depth.plt depth.$(var).svg \'depth.$(var).txt\' ; \
 		inkscape -z -y 1.0 -e depth.$(var).png depth.$(var).svg ;)
 
-$(addprefix ${BINDIR}, blast2bam fastq2fasta):
+${BINDIR}/blast2bam:
 	(cd ${SRCDIR}; ${MAKE})
 
-$(addsuffix .nin, ${DB}): ${DB}
+${DB}.nin: ${DB}
 	makeblastdb -in $< -dbtype 'nucl'
 
 # Clean
