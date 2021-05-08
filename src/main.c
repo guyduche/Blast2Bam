@@ -34,7 +34,7 @@ History:
 static void usage(FILE* out)
 {
     fprintf(out, "Blast2Bam. Last compilation: %s at %s.\n\n", __DATE__, __TIME__);
-    fprintf(out, "Usage: blast2bam [options] <Blast XML output> <reference sequence dictionary> <FastQ_1> [FastQ_2]\n\n");
+    fprintf(out, "Usage: blast2bam [options] <Blast XML output> <reference sequence> <FastQ_1> [FastQ_2]\n\n");
     fprintf(out, "Options:\n");
     fprintf(out, " --output         | -o FILE       Output file (default: stdout)\n");
     fprintf(out, " --interleaved    | -p            Interleaved data\n");
