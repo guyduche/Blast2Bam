@@ -1,0 +1,19 @@
+.PHONY: clean bam_idx
+.SHELL = /bin/bash
+FASTQ = ERR732557.fastq.gz
+DB = m13mp18.fasta
+
+bam_idx: results.bam
+	samtools index $<
+
+results.bam: ${FASTQ} ${DB}.nin
+	docker run --rm -a stdout -v ${PWD}:/data guyduche/fastq2fasta ${FASTQ} | \
+	blastn -db ${DB} -num_threads 4 -word_size 8 -reward 1 -penalty -1 -gapopen 1 -gapextend 2 -outfmt 5 | \
+	docker run --rm -i -a stdin -a stderr -a stdout -v ${PWD}:/data guyduche/blast2bam -R '@RG\tID:foo\tSM:sample' - ${DB} ${FASTQ} | \
+	samtools view -Sub -F 0xF00 - | samtools sort - > $@
+
+${DB}.nin: ${DB}
+	makeblastdb -in $< -dbtype 'nucl'
+
+clean:
+	rm -f *.bam *.bai *.nhr *.nin *.nsq
